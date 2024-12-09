@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import Navbar from "../components/Homepage/Navbar";
 import Sidebar from "../components/Homepage/Sidebar";
 import MapView from "../components/Homepage/MapView";
 import Papa from "papaparse";
+import { ShipContext } from "../ShipContext";
 const shipCategories = {
   "Cargo Ships": ["General Cargo Ship", "Refrigerated Cargo Ship", "Heavy Lift Cargo Ship"],
   Tankers: ["Crude Oil Tanker", "Product Tanker", "Chemical Tanker"],
@@ -23,8 +24,13 @@ const shipCategories = {
 
 
 const HomePage = () => {
-  const [source, setSource] = useState("");
-  const [destination, setDestination] = useState("");
+  const {
+    source,
+    setSource,
+    destination,
+    setDestination
+  } = useContext(ShipContext)
+
   const [departureDate, setDepartureDate] = useState("");
   const [departureTime, setDepartureTime] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -32,14 +38,6 @@ const HomePage = () => {
   const [sourceCoordinates, setSourceCoordinates] = useState(null);
   const [destinationCoordinates, setDestinationCoordinates] = useState(null);
   const [carriageWeight, setCarriageWeight] = useState("");
-  const [shipDisplacement, setShipDisplacement] = useState("");
-  const [frontalArea , setFrontalArea] = useState("");
-  const [hullEfficiency , setHullEfficiency] = useState("");
-  const [propellerEfficiency , setPropellerEfficiency] = useState("");
-  const [engineShaftEfficiency , setEngineShaftEfficiency] = useState("");
-  const [heightAboveSea , setHeightAboveSea] = useState("");
-  const [resonantPeriod , setResonantPeriod] = useState("");
-  const [csfoc , setCsfoc] = useState("");
   
   const [routes, setRoutes] = useState([
     { id: 1, coordinates: [], color: "#00ff00", visible: true, name: "Safest Path", description: "Safest Path" },
@@ -138,7 +136,7 @@ const HomePage = () => {
           },
         });
       });
-    fetch("/path_short.csv") // Adjust path as needed
+    fetch("/path_short_smoothed.csv") // Adjust path as needed
       .then((response) => response.text())
       .then((data) => {
         Papa.parse(data, {
@@ -174,11 +172,7 @@ const HomePage = () => {
     <div className="flex flex-col h-screen">
       <Navbar />
       <div className="flex flex-row flex-grow overflow-hidden">
-        <Sidebar
-          source={source}
-          setSource={setSource}
-          destination={destination}
-          setDestination={setDestination}
+        <Sidebar          
           selectedCategory={selectedCategory}
           setSelectedCategory={setSelectedCategory}
           selectedSubtype={selectedSubtype}
@@ -196,24 +190,6 @@ const HomePage = () => {
           setDestinationCoordinates={setDestinationCoordinates} 
           routes={routes}
           updateVisibility={updateVisibility}  
-          shipDisplacement={shipDisplacement}
-          setShipDisplacement={setShipDisplacement}
-          frontalArea={frontalArea}
-          setFrontalArea={setFrontalArea}
-          hullEfficiency={hullEfficiency}
-          setHullEfficiency={setHullEfficiency}  
-          propellerEfficiency={propellerEfficiency}
-          setPropellerEfficiency={setPropellerEfficiency}
-          engineShaftEfficiency={engineShaftEfficiency}
-          setEngineShaftEfficiency={setEngineShaftEfficiency}
-          resonantPeriod={resonantPeriod}
-          setResonantPeriod={setResonantPeriod}
-          heightAboveSea={heightAboveSea}
-          setHeightAboveSea={setHeightAboveSea}
-          csfoc={csfoc}
-          setCsfoc={setCsfoc}
-
-  
         />
         <MapView
           handleMapClick={handleMapClick}

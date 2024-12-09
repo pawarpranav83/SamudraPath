@@ -1,27 +1,23 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import {
   FaMapMarkerAlt,
   FaMapPin,
   FaCalendarAlt,
   FaClock,
-  FaRoute, 
+  FaRoute,
   FaShip,
   FaWeightHanging,
   FaList,
-  FaWeight, 
-  FaChartArea, 
-  FaEye, 
+  FaWeight,
+  FaChartArea,
+  FaEye,
   FaEyeSlash
 } from "react-icons/fa";
+import { ShipContext } from "../../ShipContext";
 import Modal from "./RouteDetails";
 import axios from "axios";
-import JSZip from 'jszip';
 
 const Sidebar = ({
-  source,
-  setSource,
-  destination,
-  setDestination,
   selectedCategory,
   setSelectedCategory,
   selectedSubtype,
@@ -32,41 +28,51 @@ const Sidebar = ({
   setDepartureTime,
   shipCategories,
   carriageWeight,
-  shipDisplacement,
-  setShipDisplacement,
   setCarriageWeight,
   handleCategoryChange,
   handleSubtypeChange,
   setSourceCoordinates,
   setDestinationCoordinates,
   routes,
-  updateVisibility,
-  frontalArea,
-  setFrontalArea,
-  hullEfficiency,
-  setHullEfficiency,
-  propellerEfficiency,
-  setPropellerEfficiency,
-  engineShaftEfficiency,
-  setEngineShaftEfficiency,
-  resonantPeriod,
-  setResonantPeriod,
-  heightAboveSea,
-  setHeightAboveSea,
-  csfoc,
-  setCsfoc,
+  updateVisibility
 }) => {
- 
+
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
-  const [safetyWeight, setSafetyWeight] = useState(0);
-  const [fuelWeight, setFuelWeight] = useState(0);
-  const [distanceWeight, setDistanceWeight] = useState(0);
   const [showCustomizedRoute, setShowCustomizedRoute] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showRecalculateButton, setShowRecalculateButton] = useState(false);
-  
+
+  const {
+    source,
+    setSource,
+    destination,
+    setDestination,
+    shipDisplacement,
+    setShipDisplacement,
+    frontalArea,
+    setFrontalArea,
+    hullEfficiency,
+    setHullEfficiency,
+    propellerEfficiency,
+    setPropellerEfficiency,
+    engineShaftEfficiency,
+    setEngineShaftEfficiency,
+    heightAboveSea,
+    setHeightAboveSea,
+    resonantPeriod,
+    setResonantPeriod,
+    csfoc,
+    setCsfoc,
+    safetyWeight,
+    setSafetyWeight,
+    distanceWeight,
+    setDistanceWeight,
+    fuelWeight,
+    setFuelWeight
+  } = useContext(ShipContext);
+
 
   const mapImages = [
     "https://via.placeholder.com/150?text=Map1",
@@ -161,6 +167,8 @@ const Sidebar = ({
       // Set loading state
       setIsLoading(true);
 
+      console.log(payload)
+
       const response = await axios.post("http://localhost:5000/calculate_route", payload, {
         headers: {
           "Content-Type": "application/json",
@@ -193,17 +201,15 @@ const Sidebar = ({
     >
       <nav className="w-1/6 bg-gray-600 text-white flex flex-col">
         <button
-          className={`p-4 text-left hover:bg-teal-600 ${
-            activeTab === "details" ? "bg-teal-700 drop-shadow-md" : ""
-          }`}
+          className={`p-4 text-left hover:bg-teal-600 ${activeTab === "details" ? "bg-teal-700 drop-shadow-md" : ""
+            }`}
           onClick={() => setActiveTab("details")}
         >
           <FaList /> Ship Details
         </button>
         <button
-          className={`p-4 text-left hover:bg-teal-600 ${
-            activeTab === "routes" ? "bg-teal-700" : ""
-          }`}
+          className={`p-4 text-left hover:bg-teal-600 ${activeTab === "routes" ? "bg-teal-700" : ""
+            }`}
           onClick={() => setActiveTab("routes")}
         >
           <FaRoute /> Ship Routes
@@ -234,7 +240,7 @@ const Sidebar = ({
         )}
 
         {!isLoading && activeTab === "details" && (
-          
+
           <div className="space-y-4" style={{
             maxHeight: "calc(100vh - 100px)", // Adjusts to viewport height
             overflowY: "auto", // Ensures vertical scroll
@@ -364,7 +370,7 @@ const Sidebar = ({
               {/* Fuel Consumption */}
               <div className="flex-1">
                 <label className="text-sm font-semibold text-gray-700">
-                    Specific Fuel Oil Consumption (g/kWh){" "}
+                  Specific Fuel Oil Consumption (g/kWh){" "}
                 </label>
                 {/* <label className="text-sm font-semibold text-gray-700">Engine Shaft (ηₑ) </label> */}
                 <input
@@ -499,8 +505,8 @@ const Sidebar = ({
               <button
                 type="submit"
                 className="w-full flex items-center justify-center gap-2 p-3 bg-teal-600 text-white rounded-md hover:bg-teal-700 transform transition duration-300 h-10"
-                // onClick={() => setActiveTab("routes")}
-                // onClick={handleFindRoutes}
+              // onClick={() => setActiveTab("routes")}
+              // onClick={handleFindRoutes}
               >
                 <FaRoute /> Find Optimized Routes
               </button>
@@ -521,54 +527,54 @@ const Sidebar = ({
               <div
                 key={route.id}
                 className="p-3 bg-white rounded-md shadow-md hover:shadow-lg transition"
-                
+
               >
-              
 
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-semibold">{route.name}</h3>
-                {/* <p className="text-gray-700">{route.description}</p> */}
-              </div>
 
-              <button
-                className="mr-4"
-                onClick={() => updateVisibility(route.id, !route.visible)}
-              >
-                {route.visible ? (
-                <FaEye className="text-2xl " style={{color: route.color}}/>
-            ) : (
-              <FaEyeSlash className="text-2xl text-gray-400" />
-            )}
-              </button>
-            </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-semibold">{route.name}</h3>
+                    {/* <p className="text-gray-700">{route.description}</p> */}
+                  </div>
 
-            <div className="flex items-center gap-4 mt-3">
-              <button
-              onClick={()=>setIsModalOpen(true)}
-                className="px-6 bg-white text-sm text-black rounded-lg hover:bg-teal-600 hover:text-white flex items-center justify-center ease-linear duration-200 hover:border-2 hover:border-teal-600"
-                style={{
-                  borderWidth: "2px",
-                  borderColor: route.color, // Dynamically set the border color
-                }}
-                // style={{background:route.color}}
-              >
-                View Details
-              </button>
+                  <button
+                    className="mr-4"
+                    onClick={() => updateVisibility(route.id, !route.visible)}
+                  >
+                    {route.visible ? (
+                      <FaEye className="text-2xl " style={{ color: route.color }} />
+                    ) : (
+                      <FaEyeSlash className="text-2xl text-gray-400" />
+                    )}
+                  </button>
+                </div>
 
-              <button
-               className="px-6 bg-white text-sm text-black rounded-lg hover:bg-teal-600 hover:text-white flex items-center justify-center ease-linear duration-200 hover:border-2 hover:border-teal-600"
-               style={{
-                 borderWidth: "2px",
-                 borderColor: route.color, // Dynamically set the border color
-               }}
-               onClick={handleSeePosition}
-             >
-              
-                Position After 3 Hours
-              </button>
-            
-            </div>
+                <div className="flex items-center gap-4 mt-3">
+                  <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="px-6 bg-white text-sm text-black rounded-lg hover:bg-teal-600 hover:text-white flex items-center justify-center ease-linear duration-200 hover:border-2 hover:border-teal-600"
+                    style={{
+                      borderWidth: "2px",
+                      borderColor: route.color, // Dynamically set the border color
+                    }}
+                  // style={{background:route.color}}
+                  >
+                    View Details
+                  </button>
+
+                  <button
+                    className="px-6 bg-white text-sm text-black rounded-lg hover:bg-teal-600 hover:text-white flex items-center justify-center ease-linear duration-200 hover:border-2 hover:border-teal-600"
+                    style={{
+                      borderWidth: "2px",
+                      borderColor: route.color, // Dynamically set the border color
+                    }}
+                    onClick={handleSeePosition}
+                  >
+
+                    Position After 3 Hours
+                  </button>
+
+                </div>
 
 
                 {/* Conditionally render the "Recalculate Route" button */}
@@ -592,7 +598,7 @@ const Sidebar = ({
               </div>
             ))}
 
-            
+
             {/* Weight Inputs for Customized Route */}
             <h2 className="text-xl font-semibold">Custom Weighted Route</h2>
             {/* <h2 className="text-l font-semibold text-gray-800">Enter Weights for each</h2> */}
@@ -609,6 +615,7 @@ const Sidebar = ({
                   </label>
                   <input
                     type="number"
+                    placeholder="0.25"
                     value={safetyWeight}
                     onChange={(e) => setSafetyWeight(e.target.value)}
                     className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 h-8"
@@ -624,6 +631,7 @@ const Sidebar = ({
                   </label>
                   <input
                     type="number"
+                    placeholder="0.375"
                     value={fuelWeight}
                     onChange={(e) => setFuelWeight(e.target.value)}
                     className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 h-8"
@@ -639,6 +647,7 @@ const Sidebar = ({
                   </label>
                   <input
                     type="number"
+                    placeholder="0.375"
                     value={distanceWeight}
                     onChange={(e) => setDistanceWeight(e.target.value)}
                     className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 h-8"
