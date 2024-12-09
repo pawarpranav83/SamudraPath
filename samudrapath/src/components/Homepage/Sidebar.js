@@ -162,40 +162,12 @@ const Sidebar = ({
       setIsLoading(true);
 
       const response = await axios.post("http://localhost:5000/calculate_route", payload, {
-        responseType: 'blob', // Important for file download
         headers: {
           "Content-Type": "application/json",
         },
       });
 
-      console.log("Route calculation complete. Fetching zip file...");
-
-      // Step 2: Fetch the zip file from the public folder
-      const zipResponse = await fetch("./route_files.zip");
-
-      if (!zipResponse.ok) {
-        throw new Error(`Failed to fetch zip file: ${zipResponse.statusText}`);
-      }
-
-      const blob = await zipResponse.blob();
-
-      // Step 3: Use JSZip to process the zip file
-      const zip = new JSZip();
-      const zipContents = await zip.loadAsync(blob);
-
-      // Step 4: Process files in the zip
-      for (const relativePath in zipContents.files) {
-        const file = zipContents.files[relativePath];
-        const content = await file.async('string');
-
-        // Log or process each file content
-        console.log(`File: ${relativePath}`);
-        console.log(`Content: ${content}`);
-
-        // Optional: Store content in state or display it on the page
-      }
-
-      console.log("Unzipped and processed files successfully.");
+      console.log(response);
     } catch (error) {
       // Handle any errors
       console.error("Error calculating route:", error.response ? error.response.data : error.message);
