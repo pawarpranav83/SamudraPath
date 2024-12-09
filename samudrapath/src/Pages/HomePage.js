@@ -138,7 +138,7 @@ const HomePage = () => {
           },
         });
       });
-    fetch("/path_short_smoothed.csv") // Adjust path as needed
+    fetch("/path_short.csv") // Adjust path as needed
       .then((response) => response.text())
       .then((data) => {
         Papa.parse(data, {
