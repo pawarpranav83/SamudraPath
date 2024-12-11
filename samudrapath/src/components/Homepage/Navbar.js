@@ -11,7 +11,7 @@ const Navbar = () => {
   return (
     <nav className="flex h-16 bg-teal-600 text-white shadow-md">
       {/* Left Section: Logo */}
-      <div className="flex items-center justify-left pl-20 w-1/2">
+      <div className="flex items-center justify-left pl-8 w-1/2">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <FaAnchor /> SamudraPath
         </h1>

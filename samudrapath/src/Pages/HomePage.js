@@ -78,14 +78,14 @@ const HomePage = () => {
       name: "Shortest Path",
       description: "Shortest Path",
     },
-    {
-      id: 4,
-      coordinates: [],
-      color: "#00FFFF",
-      visible: true,
-      name: "Optimal Route",
-      description: "Equal Weight Optimal Route ",
-    },
+    // {
+    //   id: 4,
+    //   coordinates: [],
+    //   color: "#00FFFF",
+    //   visible: true,
+    //   name: "Optimal Route",
+    //   description: "Equal Weight Optimal Route ",
+    // },
   ]);
 
   const [pirateCoordinates, setPirateCoordinates] = useState([]);
