@@ -1,23 +1,27 @@
-import React from "react";
+import React, { useContext } from "react";
 import Navbar from "../components/Homepage/Navbar";
-import { CircularProgressbarWithChildren, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { ShipContext } from "../ShipContext";
 
 const VoyageDetails = () => {
+  const { routeData } = useContext(ShipContext)
+
+
+
   const tableData = [
     {
       parameter: "Safety Index",
-      safePathValue: 85,
-      fuelEfficientPathValue: 70,
-      shortestPathValue: 60,
+      safePathValue: routeData?.safest_path?.risk || 0,
+      fuelEfficientPathValue: routeData?.fuel_efficient_path?.risk || 0,
+      shortestPathValue: routeData?.shortest_path?.risk || 0,
     },
   ];
 
   const barGraphData = [
-    { path: "Safe Path", fuel: 40, time: 30 },
-    { path: "Fuel Efficient Path", fuel: 25, time: 35 },
-    { path: "Shortest Path", fuel: 80, time: 20 },
+    { path: "Safe Path", fuel: routeData?.safest_path?.fuel || 0, time: routeData?.safest_path?.time || 0, risk: routeData?.safest_path?.risk || 0 },
+    { path: "Fuel Efficient Path", fuel: routeData?.fuel_efficient_path?.fuel || 0, time: routeData?.fuel_efficient_path?.time || 0, risk: routeData?.fuel_efficient_path?.risk || 0 },
+    { path: "Shortest Path", fuel: routeData?.shortest_path?.fuel || 0, time: routeData?.shortest_path?.time || 0, risk: routeData?.shortest_path?.risk || 0 },
   ];
 
   const getColor = (value) => {
@@ -27,7 +31,7 @@ const VoyageDetails = () => {
   };
 
   return (
-    <div className="h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100">
       <Navbar />
 
       <div className="container mx-auto p-6">
@@ -39,67 +43,7 @@ const VoyageDetails = () => {
             <p><strong>Ship Type:</strong> Cargo Ship</p>
             <p><strong>Current Location:</strong> Mumbai Port</p>
           </div>
-        </div>
-
-        {/* Safety Metrics Section */}
-        <div className="bg-white p-4 rounded-md shadow-md mb-6">
-          <h2 className="text-2xl font-bold text-teal-600 mb-4">Safety Metrics</h2>
-          <table className="min-w-full table-auto border-collapse">
-            <thead>
-              <tr className="bg-teal-600 text-white">
-                <th className="px-6 py-3 text-left">Parameter</th>
-                <th className="px-6 py-3 text-left">Risk</th>
-                <th className="px-6 py-3 text-left">Safety Index</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tableData.map((data, index) => (
-                [
-                  {
-                    path: "Safe Path",
-                    value: data.safePathValue,
-                    color: getColor(data.safePathValue),
-                  },
-                  {
-                    path: "Fuel Efficient Path",
-                    value: data.fuelEfficientPathValue,
-                    color: getColor(data.fuelEfficientPathValue),
-                  },
-                  {
-                    path: "Shortest Path",
-                    value: data.shortestPathValue,
-                    color: getColor(data.shortestPathValue),
-                  },
-                ].map((item, idx) => (
-                  <tr key={`${index}-${idx}`} className="odd:bg-gray-50 even:bg-gray-100">
-                    <td className="px-6 py-4 text-left font-medium">{item.path}</td>
-                    <td className="px-6 py-4 text-left font-medium">{item.value}%</td>
-                    <td className="px-6 py-4 text-left">
-                      <div className="w-16 h-16">
-                        <CircularProgressbarWithChildren
-                          value={item.value}
-                          maxValue={100}
-                          styles={buildStyles({
-                            pathColor: item.color,
-                            trailColor: "#ddd",
-                            strokeLinecap: "round",
-                            strokeWidth: 10,
-                          })}
-                        >
-                          <div className="text-center">
-                            <strong className="text-sm font-semibold">
-                              {item.value}%
-                            </strong>
-                          </div>
-                        </CircularProgressbarWithChildren>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ))}
-            </tbody>
-          </table>
-        </div>
+        </div>        
 
         {/* Path Performance Metrics Section */}
         <div className="bg-white p-4 rounded-md shadow-md mb-6 ml-4">
@@ -107,6 +51,25 @@ const VoyageDetails = () => {
             Path Performance Metrics
           </h2>
           <div className="flex flex-col space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-700 mb-2 text-center">
+                Risk Comparison
+              </h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={barGraphData}
+                  layout="vertical"
+                  margin={{ top: 10, right: 20, bottom: 10, left: 40 }}
+                >
+                  <XAxis type="number" />
+                  <YAxis type="category" dataKey="path" />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="risk" fill="#c1121f" name="Risk" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
             {/* Fuel Graph */}
             <div>
               <h3 className="text-lg font-semibold text-gray-700 mb-2 text-center">
