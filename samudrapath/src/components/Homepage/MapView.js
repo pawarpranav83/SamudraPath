@@ -17,8 +17,9 @@ const MapView = ({ handleMapClick, routes, pirateCoordinates }) => {
         zoom: 2.5,
       }}
       style={{ width: "100%", height: "100%" }}
-      // mapStyle="mapbox://styles/jinx83/cm4daovqb01km01si5zzlhdc4"
-       mapStyle="mapbox://styles/mapbox/streets-v11"
+      // mapStyle="mapbox://styles/jinx83/cm4daovqb01km01si5zzlhdc4" // Default map
+      //  mapStyle="mapbox://styles/mapbox/streets-v11"   // 
+      mapStyle="mapbox://styles/jinx83/cm4jtqz1x006201sib07gdzhn"   
       mapboxAccessToken={process.env.REACT_APP_MAPBOX_TOKEN}
       onClick={handleMapClick}
       onLoad={handleMapLoad} // Triggered when the map and style are fully loaded
@@ -39,16 +40,7 @@ const MapView = ({ handleMapClick, routes, pirateCoordinates }) => {
               })),
             }}
           >
-            <Layer
-              id="pirate-circles"
-              type="circle"
-              paint={{
-                "circle-color": "#FFC1C3", // Red color for pirate infestation
-                "circle-radius": 5, // Circle size
-                "circle-stroke-color": "#FF7074", // White border
-                "circle-stroke-width": 0.7, // Border width
-              }}
-            />
+            
           </Source>
           {routes.map(
             (route, index) =>
