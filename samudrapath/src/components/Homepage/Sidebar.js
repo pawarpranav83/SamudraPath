@@ -153,14 +153,14 @@ const Sidebar = ({
       goal_lat: parseFloat(goal_lat),
       goal_lon: parseFloat(goal_lon),
       ship_speed: 40,
-      ship_dis: shipDisplacement,
-      ship_height: heightAboveSea,
-      area_front: frontalArea,
-      ship_reso: resonantPeriod,
-      hull_eff: hullEfficiency,
-      prop_eff: propellerEfficiency,
-      engine_eff: engineShaftEfficiency,
-      c_sfoc: csfoc
+      ship_dis: parseFloat(shipDisplacement),
+      ship_height: parseFloat(heightAboveSea),
+      area_front: parseFloat(frontalArea),
+      ship_reso: parseFloat(resonantPeriod),
+      hull_eff: parseFloat(hullEfficiency),
+      prop_eff: parseFloat(propellerEfficiency),
+      engine_eff: parseFloat(engineShaftEfficiency),
+      c_sfoc: parseFloat(csfoc)
     };
 
     try {
