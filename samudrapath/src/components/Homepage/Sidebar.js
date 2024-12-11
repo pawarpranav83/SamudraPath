@@ -43,6 +43,7 @@ const Sidebar = ({
   const [errorMessage, setErrorMessage] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showRecalculateButton, setShowRecalculateButton] = useState(false);
+  const [routeType, setRouteType] = useState("");
 
   const {
     source,
@@ -70,7 +71,8 @@ const Sidebar = ({
     distanceWeight,
     setDistanceWeight,
     fuelWeight,
-    setFuelWeight
+    setFuelWeight,
+    setRouteData
   } = useContext(ShipContext);
 
 
@@ -175,7 +177,21 @@ const Sidebar = ({
         },
       });
 
-      console.log(response);
+      const { fuel_efficient_path
+        , safest_path
+        , shortest_path } = response.data;
+
+      console.log(fuel_efficient_path)
+      console.log(safest_path)
+      console.log(shortest_path)
+
+      setRouteData({
+        fuel_efficient_path,
+        safest_path,
+        shortest_path,
+      });
+
+      console.log(response.data);
     } catch (error) {
       // Handle any errors
       console.error("Error calculating route:", error.response ? error.response.data : error.message);
@@ -551,13 +567,15 @@ const Sidebar = ({
 
                 <div className="flex items-center gap-4 mt-3">
                   <button
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={() => {
+                      setIsModalOpen(true);
+                      setRouteType(route.id); // Passing the route name or any unique identifier
+                    }}
                     className="px-6 bg-white text-sm text-black rounded-lg hover:bg-teal-600 hover:text-white flex items-center justify-center ease-linear duration-200 hover:border-2 hover:border-teal-600"
                     style={{
                       borderWidth: "2px",
                       borderColor: route.color, // Dynamically set the border color
                     }}
-                  // style={{background:route.color}}
                   >
                     View Details
                   </button>
@@ -590,6 +608,7 @@ const Sidebar = ({
 
 
                 <Modal
+                  routeType={routeType}
                   isOpen={isModalOpen}
                   closeModal={() => setIsModalOpen(false)}
                   mapImages={mapImages}
