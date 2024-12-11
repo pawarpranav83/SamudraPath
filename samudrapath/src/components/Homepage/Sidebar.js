@@ -75,6 +75,7 @@ const Sidebar = ({
     setRouteData
   } = useContext(ShipContext);
 
+  const { routeData } = useContext(ShipContext);
 
   const mapImages = [
     "https://via.placeholder.com/150?text=Map1",
@@ -564,34 +565,36 @@ const Sidebar = ({
                     )}
                   </button>
                 </div>
-
-                <div className="flex items-center gap-4 mt-3">
-                  <button
-                    onClick={() => {
-                      setIsModalOpen(true);
-                      setRouteType(route.id); // Passing the route name or any unique identifier
+                <div className="flex items-start gap-4 mt-3">
+                  {/* Route Data Section */}
+                  <div
+                    className="flex flex-col p-4 bg-white text-sm text-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out flex-grow"
+                    style={{
+                      borderLeft: `4px solid ${route.color}`, // Modern border styling
                     }}
-                    className="px-6 bg-white text-sm text-black rounded-lg hover:bg-teal-600 hover:text-white flex items-center justify-center ease-linear duration-200 hover:border-2 hover:border-teal-600"
+                  >
+                    <div className="mb-2">
+                      <span className="font-semibold">Fuel:</span> {routeData[route.id]?.fuel || 'N/A'}
+                    </div>
+                    <div className="mb-2">
+                      <span className="font-semibold">Duration:</span> {routeData[route.id]?.time || 'N/A'}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Safety Index:</span> {routeData[route.id]?.risk || 'N/A'}
+                    </div>
+                  </div>
+
+                  {/* Position Button */}
+                  {route.id >= 4 && <button
+                    className="w-32 p-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center justify-center transition-colors duration-300 ease-in-out shadow-md hover:shadow-lg"
                     style={{
                       borderWidth: "2px",
                       borderColor: route.color, // Dynamically set the border color
                     }}
+                    onClick={() => handleSeePosition(route.id)} // Ensure route.id is passed
                   >
-                    View Details
-                  </button>
-
-                  <button
-                    className="px-6 bg-white text-sm text-black rounded-lg hover:bg-teal-600 hover:text-white flex items-center justify-center ease-linear duration-200 hover:border-2 hover:border-teal-600"
-                    style={{
-                      borderWidth: "2px",
-                      borderColor: route.color, // Dynamically set the border color
-                    }}
-                    onClick={handleSeePosition}
-                  >
-
                     Position After 3 Hours
-                  </button>
-
+                  </button>}
                 </div>
 
 
@@ -604,16 +607,6 @@ const Sidebar = ({
                     Recalculate Route
                   </button>
                 )}
-
-
-
-                <Modal
-                  routeType={routeType}
-                  isOpen={isModalOpen}
-                  closeModal={() => setIsModalOpen(false)}
-                  mapImages={mapImages}
-                  routeDetails={routeDetails}
-                />
               </div>
             ))}
 

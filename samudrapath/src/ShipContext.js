@@ -17,11 +17,7 @@ export const ShipProvider = ({ children }) => {
   const [distanceWeight, setDistanceWeight] = useState("");
   const [fuelWeight, setFuelWeight] = useState("");
 
-  const [routeData, setRouteData] = useState({
-    total_time: null,
-    total_fuel: null,
-    total_risk: null,
-  });
+  const [routeData, setRouteData] = useState([]);
 
   return (
     <ShipContext.Provider
