@@ -19,7 +19,7 @@ const MapView = ({ handleMapClick, routes, pirateCoordinates }) => {
       style={{ width: "100%", height: "100%" }}
       // mapStyle="mapbox://styles/jinx83/cm4daovqb01km01si5zzlhdc4" // Default map
       //  mapStyle="mapbox://styles/mapbox/streets-v11"   // 
-      mapStyle="mapbox://styles/jinx83/cm4jtqz1x006201sib07gdzhn"   
+      mapStyle="mapbox://styles/jinx83/cm4jtqz1x006201sib07gdzhn/draft"   
       mapboxAccessToken={process.env.REACT_APP_MAPBOX_TOKEN}
       onClick={handleMapClick}
       onLoad={handleMapLoad} // Triggered when the map and style are fully loaded
