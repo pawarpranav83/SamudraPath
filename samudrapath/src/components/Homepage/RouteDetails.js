@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { Transition } from "@headlessui/react"; // Optional for animation
 import "tailwindcss/tailwind.css"; // Make sure tailwind is installed
+import { ShipContext } from "../../ShipContext";
 
-const Modal = ({ isOpen, closeModal, mapImages, routeDetails }) => {
+const Modal = ({ routeType, isOpen, closeModal, mapImages, routeDetails }) => {
   const tempImg = [
     "/wind_speed_map.svg",
     "/wave_height_map.svg",
@@ -10,6 +11,10 @@ const Modal = ({ isOpen, closeModal, mapImages, routeDetails }) => {
     "/vsurf_map.svg",
   ];
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const { routeData } = useContext(ShipContext);
+
+  console.log(routeData)
 
   const goToPreviousImage = () => {
     setCurrentImageIndex((prevIndex) =>
@@ -70,16 +75,33 @@ const Modal = ({ isOpen, closeModal, mapImages, routeDetails }) => {
               <h2 className="text-3xl font-semibold text-gray-900">Route Details</h2>
               <div className="space-y-4 mt-4">
                 <div className="flex justify-between">
-                  <p className="text-gray-700">Fuel Cost:</p>
-                  <p className="font-semibold text-gray-900">{routeDetails.fuelCost}</p>
+                  <p className="text-gray-700">Fuel Used(gallons):</p>
+                  {/* Conditionally display based on routeType */}
+                  <p className="font-semibold text-gray-900">
+                    {routeType === 1 ? routeData.safest_path.fuel : ''}
+                    {routeType === 2 ? routeData.fuel_efficient_path.fuel : ''}
+                    {routeType === 3 ? routeData.shortest_path.fuel : ''}
+                  </p>
                 </div>
+
                 <div className="flex justify-between">
-                  <p className="text-gray-700">Duration of Route:</p>
-                  <p className="font-semibold text-gray-900">{routeDetails.duration}</p>
+                  <p className="text-gray-700">Duration of Route(hrs):</p>
+                  {/* Conditionally display based on routeType */}
+                  <p className="font-semibold text-gray-900">
+                    {routeType === 1 ? routeData.safest_path.time : ''}
+                    {routeType === 2 ? routeData.fuel_efficient_path.time : ''}
+                    {routeType === 3 ? routeData.shortest_path.time : ''}
+                  </p>
                 </div>
+
                 <div className="flex justify-between">
-                  <p className="text-gray-700">Safety Index:</p>
-                  <p className="font-semibold text-gray-900">{routeDetails.safetyIndex}</p>
+                  <p className="text-gray-700">Risk:</p>
+                  {/* Conditionally display based on routeType */}
+                  <p className="font-semibold text-gray-900">
+                    {routeType === 1 ? routeData.safest_path.risk : ''}
+                    {routeType === 2 ? routeData.fuel_efficient_path.risk : ''}
+                    {routeType === 3 ? routeData.shortest_path.risk : ''}
+                  </p>
                 </div>
               </div>
 

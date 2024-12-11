@@ -23,7 +23,7 @@ const Navbar = () => {
         <Link
           to="/"  // Update the path according to your actual route
           className={`flex-1 text-center py-5 hover:bg-teal-500 transition ${
-            isActive("/optimal-route") ? "bg-gray-600" : ""
+            isActive("/") ? "bg-gray-600" : ""
           }`}
         >
           <FaRoute className="inline mr-2" /> Optimal Route
@@ -43,7 +43,7 @@ const Navbar = () => {
         <Link
           to="/"
           className={`flex-1 text-center py-5 hover:bg-teal-500 transition ${
-            isActive("/") ? "bg-gray-600" : ""
+            isActive("/health-checkup") ? "bg-gray-600" : ""
           }`}
         >
           <FaHeartbeat className="inline mr-2" /> Health Checkup
