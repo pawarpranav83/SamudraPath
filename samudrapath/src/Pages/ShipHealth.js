@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import Header from "../components/Shiphealth/Header";
-import ShipDetails from "../components/Shiphealth/ShipDetails";
-import HealthBarometer from "../components/Shiphealth/HealthBarometer";
-import LastMaintenanceHistory from "../components/Shiphealth/LastMaintenanceHistory";
+import ShipDetails from "../components/Shiphealth/ShipDetails"; 
+import Navbar from "../components/Homepage/Navbar";
 
  
 
@@ -63,7 +62,8 @@ const ShipHealth = () => {
   };
 
   return (
-    <div className="p-8">
+    <div className="">
+      <Navbar/>
       <Header onSearch={fetchShipDetails} />
 
       {loading && <p className="text-indigo-600 mt-4">Loading ship details...</p>}
@@ -74,8 +74,8 @@ const ShipHealth = () => {
         <>
           <ShipDetails details={shipData.details} />
           {/* <HealthBarometer   /> */}
-          <HealthBarometer riskLevel={shipData.riskLevel} />
-          <LastMaintenanceHistory />
+          {/* <HealthBarometer riskLevel={shipData.riskLevel} />
+          <LastMaintenanceHistory /> */}
         </>
       )}
 
