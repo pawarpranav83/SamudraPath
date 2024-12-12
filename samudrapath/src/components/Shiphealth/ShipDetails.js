@@ -1,6 +1,21 @@
-import React from "react";
+import React, { useState } from "react";
+import { FaClipboard, FaCheck } from "react-icons/fa";
 
 const ShipDetails = ({ details, riskLevel }) => {
+  const [copied, setCopied] = useState(false);
+
+  // Function to copy latitude and longitude to clipboard
+  const copyToClipboard = () => {
+    const latLongText = `${details.latitude}, ${details.longitude}`;
+    navigator.clipboard
+      .writeText(latLongText)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000); // Revert icon back after 2 seconds
+      })
+      .catch((err) => console.error("Failed to copy coordinates:", err));
+  };
+
   return (
     <div className="bg-white shadow-lg rounded-xl p-4 m-8 mt-4 border border-gray-300">
       <div className="flex space-x-8">
@@ -49,20 +64,29 @@ const ShipDetails = ({ details, riskLevel }) => {
           </div>
           {/* Content */}
           <div className="p-6 space-y-4 flex flex-col items-center justify-center">
-  <p className="text-lg text-gray-800">
-    <strong className="font-medium text-teal-600">Latitude:</strong> {details.latitude}
-  </p>
-  <p className="text-lg text-gray-800">
-      <strong className="font-medium text-teal-600">Longitude:</strong> {details.longitude}
-  </p>
-  <button
-    className="bg-teal-600 text-white font-semibold py-2 px-4 rounded hover:bg-teal-500"
-    onClick={() => alert("Calculating optimal route...")}
-  >
-    Calculate Optimal Route
-  </button>
-</div>
-
+            <p className="text-lg text-gray-800">
+              <strong className="font-medium text-teal-600">Latitude:</strong> {details.latitude}
+            </p>
+            <p className="text-lg text-gray-800">
+              <strong className="font-medium text-teal-600">Longitude:</strong> {details.longitude}
+            </p>
+            <button
+              className="bg-teal-600 text-white font-semibold py-2 px-4 rounded hover:bg-teal-500 flex items-center space-x-2"
+              onClick={copyToClipboard}
+            >
+              {copied ? (
+                <>
+                  <FaCheck className="text-white" />
+                  <span>Copied</span>
+                </>
+              ) : (
+                <>
+                  <FaClipboard className="text-white" />
+                  <span>Copy to Clipboard</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

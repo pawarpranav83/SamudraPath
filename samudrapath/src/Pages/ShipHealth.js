@@ -1,14 +1,12 @@
 import React, { useState } from "react";
 import Header from "../components/Shiphealth/Header";
-import ShipDetails from "../components/Shiphealth/ShipDetails"; 
+import ShipDetails from "../components/Shiphealth/ShipDetails";
 import Navbar from "../components/Homepage/Navbar";
-
- 
 
 const ShipHealth = () => {
   const [shipData, setShipData] = useState(null);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false); // Added loading state
+  const [loading, setLoading] = useState(false);
 
   const fetchShipDetails = async (imo) => {
     const options = {
@@ -17,25 +15,26 @@ const ShipHealth = () => {
         Authorization: '88f1VhNUindHAbwmYSJZgmCp', // Your API key here
       },
     };
-
-    setLoading(true); // Start loading
-    setError(null);   // Clear previous errors
-    setShipData(null); // Clear previous data
-
+  
+    setLoading(true);
+    setError(null);
+    setShipData(null);
+  
     try {
-      const response = await fetch('https://cors-anywhere.herokuapp.com/https://api.terminal49.com/v2/vessels/9839143', options);
-
-      if (!response.ok) {
-        throw new Error(`Error: ${response.statusText}`);
+      const response = await fetch(`https://cors-anywhere.herokuapp.com/https://api.terminal49.com/v2/vessels/${imo}`, options);
+  
+      if (!response || !response.ok) {
+        // If response is undefined or status is not ok, throw error
+        throw new Error(`Error: ${response ? response.statusText : 'No response from API'}`);
       }
-
+  
       const data = await response.json();
-      console.log('Ship Data:', data); // Log the response data to verify
-
-      if (!data.data || !data.data.attributes) {
+      console.log('Ship Data:', data);
+  
+      if (!data || !data.data || !data.data.attributes) {
         throw new Error('No valid ship data returned');
       }
-
+  
       const details = {
         name: data.data.attributes.name,
         imo: data.data.attributes.imo,
@@ -46,24 +45,23 @@ const ShipHealth = () => {
         heading: data.data.attributes.navigational_heading_degrees,
         positionTime: data.data.attributes.position_timestamp,
       };
-
-      // Mock risk level logic based on speed
-      // const riskLevel = details.speed > 15 ? 'High' : 'Low';
-      const riskLevel =6;
-
+  
+      // Risk level logic
+      const riskLevel = details.speed > 15 ? 'High' : 'Low';
+  
       setShipData({ details, riskLevel });
-      // setShipData({ details,6 });
     } catch (err) {
-      console.error('Error:', err); // Log the error for debugging
+      console.error('Error:', err);
       setError(err.message || 'An unexpected error occurred');
     } finally {
-      setLoading(false); // Stop loading
+      setLoading(false);
     }
   };
+  
 
   return (
     <div className="">
-      <Navbar/>
+      <Navbar />
       <Header onSearch={fetchShipDetails} />
 
       {loading && <p className="text-indigo-600 mt-4">Loading ship details...</p>}
@@ -73,9 +71,7 @@ const ShipHealth = () => {
       {shipData && (
         <>
           <ShipDetails details={shipData.details} />
-          {/* <HealthBarometer   /> */}
-          {/* <HealthBarometer riskLevel={shipData.riskLevel} />
-          <LastMaintenanceHistory /> */}
+          {/* Optionally render additional components like a health bar */}
         </>
       )}
 
@@ -87,4 +83,3 @@ const ShipHealth = () => {
 };
 
 export default ShipHealth;
-
