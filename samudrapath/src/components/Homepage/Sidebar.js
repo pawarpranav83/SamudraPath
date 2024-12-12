@@ -1,4 +1,5 @@
 import React, { useState, useContext } from "react";
+import Papa from 'papaparse';
 import {
   FaMapMarkerAlt,
   FaMapPin,
@@ -124,8 +125,6 @@ const Sidebar = ({
 
   const handleClick = (routeId) => {
     setShowRecalculateButton(true);
-    // alert(`Showing position of Route ID: ${routeId} after 6 hours on the map.`);
-
     // Logic to show the position on map goes here
   };
 
@@ -180,7 +179,7 @@ const Sidebar = ({
         },
       });
 
-      console.log(response.data)
+      setRouteData(response.data)
     } catch (error) {
       // Handle any errors
       console.error("Error calculating route:", error.response ? error.response.data : error.message);
@@ -204,23 +203,23 @@ const Sidebar = ({
       className="flex h-screen"
       style={{ minWidth: "450px", maxWidth: "450px" }}
     >
+      {/* Navigation */}
       <nav className="w-1/6 bg-gray-600 text-white flex flex-col">
         <button
-          className={`p-4 text-left hover:bg-teal-600 ${activeTab === "details" ? "bg-teal-700 drop-shadow-md" : ""
-            }`}
+          className={`p-4 text-left hover:bg-teal-600 ${activeTab === "details" ? "bg-teal-700 drop-shadow-md" : ""}`}
           onClick={() => setActiveTab("details")}
         >
           <FaList /> Ship Details
         </button>
         <button
-          className={`p-4 text-left hover:bg-teal-600 ${activeTab === "routes" ? "bg-teal-700" : ""
-            }`}
+          className={`p-4 text-left hover:bg-teal-600 ${activeTab === "routes" ? "bg-teal-700" : ""}`}
           onClick={() => setActiveTab("routes")}
         >
           <FaRoute /> Ship Routes
         </button>
       </nav>
 
+      {/* Sidebar Content */}
       <aside
         className="w-5/6 bg-gradient-to-br from-gray-100 to-gray-200 p-5 shadow-lg flex flex-col gap-4 transition-all overflow-y-auto"
         style={{
@@ -237,6 +236,7 @@ const Sidebar = ({
           `}
         </style>
 
+        {/* Loading State */}
         {isLoading && (
           <div className="flex flex-col items-center justify-center h-full">
             <div className="loader mb-4 border-t-4 border-teal-500 rounded-full w-12 h-12 animate-spin"></div>
@@ -244,18 +244,18 @@ const Sidebar = ({
           </div>
         )}
 
+        {/* Details Tab */}
         {!isLoading && activeTab === "details" && (
-
-          <div className="space-y-4" style={{
-            maxHeight: "calc(100vh - 100px)", // Adjusts to viewport height
-            overflowY: "auto", // Ensures vertical scroll
-          }}
+          <div
+            className="space-y-4"
+            style={{
+              maxHeight: "calc(100vh - 100px)", // Adjusts to viewport height
+              overflowY: "auto", // Ensures vertical scroll
+            }}
           >
-            {/* Source Input */}
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-4"
-            >
+            {/* Source and Destination Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Source Input */}
               <div className="space-y-1">
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                   <FaMapMarkerAlt /> Source
@@ -344,10 +344,10 @@ const Sidebar = ({
                 />
               </div>
 
-              {/* Ship displacement */}
+              {/* Ship Displacement */}
               <div className="space-y-1">
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <FaWeight /> Ship Displaement (tonnes)
+                  <FaWeight /> Ship Displacement (tonnes)
                 </label>
                 <input
                   type="number"
@@ -358,7 +358,7 @@ const Sidebar = ({
                 />
               </div>
 
-              {/* FrontalArea*/}
+              {/* Frontal Area */}
               <div className="space-y-1">
                 <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                   <FaChartArea /> Frontal Area (m²)
@@ -375,9 +375,8 @@ const Sidebar = ({
               {/* Fuel Consumption */}
               <div className="flex-1">
                 <label className="text-sm font-semibold text-gray-700">
-                  Specific Fuel Oil Consumption (g/kWh){" "}
+                  Specific Fuel Oil Consumption (g/kWh)
                 </label>
-                {/* <label className="text-sm font-semibold text-gray-700">Engine Shaft (ηₑ) </label> */}
                 <input
                   type="number"
                   value={csfoc}
@@ -387,13 +386,12 @@ const Sidebar = ({
                 />
               </div>
 
-              {/* resonant period and height above sea*/}
-              {/* Inputs in a horizontal flex */}
+              {/* Resonant Period and Height Above Sea */}
               <div className="flex space-x-4">
-                {/*resonantPeriod*/}
-                <div className="flex-1">
+                {/* Resonant Period */}
+                <div className="flex-1 space-y-1">
                   <label className="text-sm font-semibold text-gray-700">
-                    Resonant Period (sec){" "}
+                    Resonant Period (sec)
                   </label>
                   <input
                     type="number"
@@ -405,12 +403,11 @@ const Sidebar = ({
                   />
                 </div>
 
-                {/* Height above sea*/}
-                <div className="flex-1">
+                {/* Height Above Sea */}
+                <div className="flex-1 space-y-1">
                   <label className="text-sm font-semibold text-gray-700">
-                    Height above sea (m){" "}
+                    Height above sea (m)
                   </label>
-                  {/* <label className="text-sm font-semibold text-gray-700">Engine Shaft (ηₑ) </label> */}
                   <input
                     type="number"
                     value={heightAboveSea}
@@ -422,17 +419,16 @@ const Sidebar = ({
                 </div>
               </div>
 
-              {/* Efficiency */}
+              {/* Efficiency Inputs */}
               <p className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-0">
                 <FaChartArea /> Enter Efficiencies for each
               </p>
 
-              {/* Inputs in a horizontal flex */}
               <div className="flex space-x-3 mt-0">
-                {/* Hull */}
-                <div className="flex-1">
+                {/* Hull Efficiency */}
+                <div className="flex-1 space-y-1">
                   <label className="text-sm font-semibold text-gray-700">
-                    Hull (ηₕ){" "}
+                    Hull (ηₕ)
                   </label>
                   <input
                     type="number"
@@ -445,10 +441,10 @@ const Sidebar = ({
                   />
                 </div>
 
-                {/* Propeller */}
-                <div className="flex-1">
+                {/* Propeller Efficiency */}
+                <div className="flex-1 space-y-1">
                   <label className="text-sm font-semibold text-gray-700">
-                    Propeller (ηₚ){" "}
+                    Propeller (ηₚ)
                   </label>
                   <input
                     type="number"
@@ -461,12 +457,11 @@ const Sidebar = ({
                   />
                 </div>
 
-                {/* Engine Shaft  */}
-                <div className="flex-1">
+                {/* Engine Shaft Efficiency */}
+                <div className="flex-1 space-y-1">
                   <label className="text-sm font-semibold text-gray-700">
-                    Engine Shaft{" "}
+                    Engine Shaft (ηₑ)
                   </label>
-                  {/* <label className="text-sm font-semibold text-gray-700">Engine Shaft (ηₑ) </label> */}
                   <input
                     type="number"
                     value={engineShaftEfficiency}
@@ -478,10 +473,10 @@ const Sidebar = ({
                   />
                 </div>
               </div>
-              {/* Efficiency */}
 
               {/* Departure Date and Time */}
               <div className="flex space-x-4">
+                {/* Departure Date */}
                 <div className="flex-1 space-y-1">
                   <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                     <FaCalendarAlt /> Departure Date
@@ -493,6 +488,8 @@ const Sidebar = ({
                     className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 h-8"
                   />
                 </div>
+
+                {/* Departure Time */}
                 <div className="flex-1 space-y-1">
                   <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
                     <FaClock /> Departure Time
@@ -510,8 +507,6 @@ const Sidebar = ({
               <button
                 type="submit"
                 className="w-full flex items-center justify-center gap-2 p-3 bg-teal-600 text-white rounded-md hover:bg-teal-700 transform transition duration-300 h-10"
-              // onClick={() => setActiveTab("routes")}
-              // onClick={handleFindRoutes}
               >
                 <FaRoute /> Find Optimized Routes
               </button>
@@ -521,167 +516,218 @@ const Sidebar = ({
 
         {/* Routes Tab */}
         {!isLoading && activeTab === "routes" && (
-          <div className="flex flex-col gap-4" style={{
-            maxHeight: "calc(100vh - 100px)", // Adjusts to viewport height
-            overflowY: "auto", // Ensures vertical scroll
-          }}>
+          <div
+            className="flex flex-col gap-4"
+            style={{
+              maxHeight: "calc(100vh - 100px)", // Adjusts to viewport height
+              overflowY: "auto", // Ensures vertical scroll
+            }}
+          >
             <h2 className="text-xl font-semibold">
               Respective Optimized Routes
             </h2>
-            {routes.map((route) => (
-              <div
-                key={route.id}
-                className="p-3 bg-white rounded-md shadow-md hover:shadow-lg transition"
 
-              >
+            {/* Hardcoded Route 1 */}
+            <div className="p-3 bg-white rounded-md shadow-md hover:shadow-lg transition mb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold">Optimal Route 1</h3>
+                  {/* <p className="text-gray-700">{route.description}</p> */}
+                </div>
 
+                <button
+                  className="mr-4 focus:outline-none"
+                  onClick={() => {
+                    const route = routes.find(route => route.id === 1);
+                    updateVisibility(1, !route.visible);
+                  }}
+                >
+                  {routes.find(route => route.id === 1).visible ? (
+                    <FaEye className="text-2xl" style={{ color: "#FF0000" }} />
+                  ) : (
+                    <FaEyeSlash className="text-2xl text-gray-400" />
+                  )}
+                </button>
+              </div>
 
-                <div className="flex items-center justify-between">
+              <div className="flex items-start gap-4 mt-3">
+                {/* Route Data Section */}
+                <div
+                  className="flex flex-col p-4 bg-white text-sm text-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out flex-grow"
+                  style={{
+                    borderLeft: `4px solid #FF0000`, // Modern border styling
+                  }}
+                >
+                  <div className="mb-2">
+                    <span className="font-semibold">Fuel:</span> {112978.787 || 'N/A'}
+                  </div>
+                  <div className="mb-2">
+                    <span className="font-semibold">Duration(hrs):</span> {62.035 || 'N/A'}
+                  </div>
                   <div>
-                    <h3 className="text-xl font-semibold">{route.name}</h3>
-                    {/* <p className="text-gray-700">{route.description}</p> */}
+                    <span className="font-semibold">Safety Index:</span> {0.576 || 'N/A'}
                   </div>
-
-                  <button
-                    className="mr-4"
-                    onClick={() => updateVisibility(route.id, !route.visible)}
-                  >
-                    {route.visible ? (
-                      <FaEye className="text-2xl " style={{ color: route.color }} />
-                    ) : (
-                      <FaEyeSlash className="text-2xl text-gray-400" />
-                    )}
-                  </button>
-                </div>
-                <div className="flex items-start gap-4 mt-3">
-                  {/* Route Data Section */}
-                  <div
-                    className="flex flex-col p-4 bg-white text-sm text-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out flex-grow"
-                    style={{
-                      borderLeft: `4px solid ${route.color}`, // Modern border styling
-                    }}
-                  >
-                    <div className="mb-2">
-                      <span className="font-semibold">Fuel:</span> {routeData[route.id]?.fuel || 'N/A'}
-                    </div>
-                    <div className="mb-2">
-                      <span className="font-semibold">Duration:</span> {routeData[route.id]?.time || 'N/A'}
-                    </div>
-                    <div>
-                      <span className="font-semibold">Safety Index:</span> {routeData[route.id]?.risk || 'N/A'}
-                    </div>
-                  </div>
-
-                  {/* Position Button */}
-                  {route.id >= 4 && <button
-                    className="w-32 p-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center justify-center transition-colors duration-300 ease-in-out shadow-md hover:shadow-lg"
-                    style={{
-                      borderWidth: "2px",
-                      borderColor: route.color, // Dynamically set the border color
-                    }}
-                    onClick={() => handleClick(route.id)} // Ensure route.id is passed
-                  >
-                    Position After 24 Hours
-                  </button>}
                 </div>
 
-
-                {/* Conditionally render the "Recalculate Route" button */}
-                {showRecalculateButton && (
-                  <button
-                    className="w-full flex items-center justify-center gap-2 p-3 bg-teal-600 text-white rounded-md hover:bg-teal-700 transform transition duration-300 h-10 mt-2"
-                    onClick={handleRecalculateRoute}
-                  >
-                    Recalculate Route
-                  </button>
-                )}
-              </div>
-            ))}
-
-
-            
-            <div className="space-y-4 mt-0 hidden">
-              {/* Inputs in a horizontal flex */}
-              <div className="flex space-x-4">
-                {/* Safety Weight */}
-                <div className="flex-1">
-                  <label className="text-sm font-semibold text-gray-700">
-                    Safety{" "}
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="0.25"
-                    value={safetyWeight}
-                    onChange={(e) => setSafetyWeight(e.target.value)}
-                    className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 h-8"
-                    step="0.01"
-                    min="0"
-                  />
-                </div>
-
-                {/* Fuel Weight */}
-                <div className="flex-1">
-                  <label className="text-sm font-semibold text-gray-700">
-                    Fuel{" "}
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="0.375"
-                    value={fuelWeight}
-                    onChange={(e) => setFuelWeight(e.target.value)}
-                    className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 h-8"
-                    step="0.01"
-                    min="0"
-                  />
-                </div>
-
-                {/* Distance Weight */}
-                <div className="flex-1">
-                  <label className="text-sm font-semibold text-gray-700">
-                    Distance{" "}
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="0.375"
-                    value={distanceWeight}
-                    onChange={(e) => setDistanceWeight(e.target.value)}
-                    className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 h-8"
-                    step="0.01"
-                    min="0"
-                  />
-                </div>
+                {/* Position Button */}
+                <button
+                  className="w-32 p-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center justify-center transition-colors duration-300 ease-in-out shadow-md hover:shadow-lg"
+                  style={{
+                    borderWidth: "2px",
+                    borderColor: "#FF0000", // Dynamically set the border color
+                  }}
+                  onClick={() => handleClick(1)} // Ensure route.id is passed
+                >
+                  Position After 24 Hours
+                </button>
               </div>
 
-              {/* Error Message */}
-              {errorMessage && (
-                <p className="text-red-500 text-sm">{errorMessage}</p>
+              {/* Conditionally render the "Recalculate Route" button */}
+              {showRecalculateButton && (
+                <button
+                  className="w-full flex items-center justify-center gap-2 p-3 bg-red-600 text-white rounded-md hover:bg-red-700 transform transition duration-300 h-10 mt-2"
+                  onClick={() => handleRecalculateRoute(1)}
+                >
+                  Recalculate Route
+                </button>
               )}
-
-              {/* Submit Button */}
-              <button
-                className="w-full flex items-center justify-center gap-2 p-3 bg-teal-600 text-white rounded-md hover:bg-teal-700 transform transition duration-300 h-10"
-                onClick={handleWeightSubmit}
-              >
-                <FaWeight className="text-lg" />
-                {/* <FaRoute className="text-lg" /> */}
-                <span>Find Custom Weight Route</span>
-              </button>
             </div>
-            {/* Customized Weight Path */}
-            {showCustomizedRoute && (
-              <div className="mt-6 p-4 bg-teal-100 rounded-md shadow-md">
-                <h3 className="text-lg font-bold">
-                  Customized Route Based on Weights
-                </h3>
-                <p>Safety Weight: {safetyWeight} kg</p>
-                <p>Fuel Weight: {fuelWeight} kg</p>
-                <p>Distance Weight: {distanceWeight} km</p>
-                <p>
-                  Customized route details will appear here based on the input
-                  weights.
-                </p>
+
+            {/* Hardcoded Route 2 */}
+            <div className="p-3 bg-white rounded-md shadow-md hover:shadow-lg transition mb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold">Optimal Route 2</h3>
+                  {/* <p className="text-gray-700">{route.description}</p> */}
+                </div>
+
+                <button
+                  className="mr-4 focus:outline-none"
+                  onClick={() => {
+                    const route = routes.find(route => route.id === 2);
+                    updateVisibility(2, !route.visible);
+                  }}
+                >
+                  {routes.find(route => route.id === 2).visible ? (
+                    <FaEye className="text-2xl" style={{ color: "#0000FF" }} />
+                  ) : (
+                    <FaEyeSlash className="text-2xl text-gray-400" />
+                  )}
+                </button>
               </div>
-            )}
+
+              <div className="flex items-start gap-4 mt-3">
+                {/* Route Data Section */}
+                <div
+                  className="flex flex-col p-4 bg-white text-sm text-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out flex-grow"
+                  style={{
+                    borderLeft: `4px solid #FF00FF`, // Modern border styling
+                  }}
+                >
+                  <div className="mb-2">
+                    <span className="font-semibold">Fuel:</span> {132364 || 'N/A'}
+                  </div>
+                  <div className="mb-2">
+                    <span className="font-semibold">Duration(hrs):</span> {65.432 || 'N/A'}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Safety Index:</span> {0.225|| 'N/A'}
+                  </div>
+                </div>
+
+                {/* Position Button */}
+                <button
+                  className="w-32 p-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center justify-center transition-colors duration-300 ease-in-out shadow-md hover:shadow-lg"
+                  style={{
+                    borderWidth: "2px",
+                    borderColor: "#FF00FF", // Dynamically set the border color
+                  }}
+                  onClick={() => handleClick(2)} // Ensure route.id is passed
+                >
+                  Position After 24 Hours
+                </button>
+              </div>
+
+              {/* Conditionally render the "Recalculate Route" button */}
+              {showRecalculateButton && (
+                <button
+                  className="w-full flex items-center justify-center gap-2 p-3 bg-red-600 text-white rounded-md hover:bg-red-700 transform transition duration-300 h-10 mt-2"
+                  onClick={() => handleRecalculateRoute(2)}
+                >
+                  Recalculate Route
+                </button>
+              )}
+            </div>
+
+            {/* Hardcoded Route 3 */}
+            <div className="p-3 bg-white rounded-md shadow-md hover:shadow-lg transition mb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold">Optimal Route 3</h3>
+                  {/* <p className="text-gray-700">{route.description}</p> */}
+                </div>
+
+                <button
+                  className="mr-4 focus:outline-none"
+                  onClick={() => {
+                    const route = routes.find(route => route.id === 3);
+                    updateVisibility(3, !route.visible);
+                  }}
+                >
+                  {routes.find(route => route.id === 3).visible ? (
+                    <FaEye className="text-2xl" style={{ color: "#FFA500" }} />
+                  ) : (
+                    <FaEyeSlash className="text-2xl text-gray-400" />
+                  )}
+                </button>
+              </div>
+
+              <div className="flex items-start gap-4 mt-3">
+                {/* Route Data Section */}
+                <div
+                  className="flex flex-col p-4 bg-white text-sm text-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 ease-in-out flex-grow"
+                  style={{
+                    borderLeft: `4px solid #00FFFF`, // Modern border styling
+                  }}
+                >
+                  <div className="mb-2">
+                    <span className="font-semibold">Fuel:</span> {120810.09 || 'N/A'}
+                  </div>
+                  <div className="mb-2">
+                    <span className="font-semibold">Duration(hrs):</span> {60.73 || 'N/A'}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Safety Index:</span> {0.26 || 'N/A'}
+                  </div>
+                </div>
+
+                {/* Position Button */}
+                <button
+                  className="w-32 p-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center justify-center transition-colors duration-300 ease-in-out shadow-md hover:shadow-lg"
+                  style={{
+                    borderWidth: "2px",
+                    borderColor: "#00FFFF", // Dynamically set the border color
+                  }}
+                  onClick={() => handleClick(3)} // Ensure route.id is passed
+                >
+                  Position After 24 Hours
+                </button>
+              </div>
+
+              {/* Conditionally render the "Recalculate Route" button */}
+              {showRecalculateButton && (
+                <button
+                  className="w-full flex items-center justify-center gap-2 p-3 bg-red-600 text-white rounded-md hover:bg-red-700 transform transition duration-300 h-10 mt-2"
+                  onClick={() => handleRecalculateRoute(3)}
+                >
+                  Recalculate Route
+                </button>
+              )}
+            </div>
+
+              
+            
+
           </div>
         )}
       </aside>

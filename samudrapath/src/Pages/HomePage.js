@@ -38,12 +38,7 @@ const shipCategories = {
 };
 
 const HomePage = () => {
-  const {
-    source,
-    setSource,
-    destination,
-    setDestination,
-  } = useContext(ShipContext);
+  const { source, setSource, destination, setDestination } = useContext(ShipContext);
 
   const [departureDate, setDepartureDate] = useState("");
   const [departureTime, setDepartureTime] = useState("");
@@ -57,7 +52,7 @@ const HomePage = () => {
       id: 1,
       coordinates: [],
       color: "#00ff00",
-      visible: true,
+      visible: false,
       name: "Safest Path",
       description: "Safest Path",
     },
@@ -65,7 +60,7 @@ const HomePage = () => {
       id: 2,
       coordinates: [],
       color: "#0000FF",
-      visible: true,
+      visible: false,
       name: "Fuel Efficient Path",
       description: "Fuel Efficient Path",
     },
@@ -73,17 +68,21 @@ const HomePage = () => {
       id: 3,
       coordinates: [],
       color: "#FFA500",
-      visible: true,
+      visible: false,
       name: "Shortest Path",
       description: "Shortest Path",
     },
-    // Dynamic routes will be added with id >=4
+    // Dynamic routes will start from id >= 4
   ]);
 
   const dynamicRouteIdRef = useRef(4); // Starting ID for dynamic routes
   const fetchedDynamicRoutesRef = useRef(new Set()); // To track fetched dynamic routes
 
   const [pirateCoordinates, setPirateCoordinates] = useState([]);
+  const [routeData, setRouteData] = useState({}); 
+  
+  // New state to hold the number of paths from results.csv
+  const nsgaPathsLength = 3;
 
   const handleCategoryChange = (event) => {
     setSelectedCategory(event.target.value);
@@ -106,7 +105,7 @@ const HomePage = () => {
     }
   };
 
-  // Function to update coordinates of a predefined route by id
+  // Update predefined or dynamic route coordinates
   const updateCoordinates = (id, newCoordinates) => {
     setRoutes((prevRoutes) =>
       prevRoutes.map((route) =>
@@ -115,7 +114,6 @@ const HomePage = () => {
     );
   };
 
-  // Function to update visibility of a route by id
   const updateVisibility = (id, visibility) => {
     setRoutes((prevRoutes) =>
       prevRoutes.map((route) =>
@@ -124,136 +122,105 @@ const HomePage = () => {
     );
   };
 
-  const nsga_paths_length = 3; // Adjust based on the number of dynamic paths you have
+  
+
 
   useEffect(() => {
-  // Define a color palette for dynamic routes
-  const dynamicColors = [
-    "#FF0000", // Red
-    "#00FFFF", // Cyan
-    "#FF00FF", // Magenta
-    "#800000", // Maroon
-    "#808000", // Olive
-    "#008080", // Teal
-    "#800080", // Purple
-    "#008000", // Green
-    "#000080", // Navy
-    "#FFA500", // Orange
-    // Add more colors if needed
-  ];
+    // Only proceed if nsgaPathsLength is known
+    if (nsgaPathsLength === null) return;
 
-  // Helper function to get color for dynamic routes
-  const getDynamicColor = (index) => {
-    return dynamicColors[index % dynamicColors.length];
-  };
+    // Define dynamicColors and fetchCSV inside this effect so they can use nsgaPathsLength
+    const dynamicColors = [
+      "#FF0000", "#00FFFF", "#FF00FF", "#800000",
+      "#808000", "#008080", "#800080", "#008000",
+      "#000080", "#FFA500",
+    ];
 
-  // Helper function to fetch and parse CSV files
-  const fetchCSV = (url, parseFunction, isPirate = false, dynamicIndex = null) => {
-    fetch(`${url}?t=${Date.now()}`) // Cache busting with timestamp
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Network response was not ok for ${url}`);
-        }
-        return response.text();
-      })
-      .then((data) => {
-        Papa.parse(data, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (results) => {
-            const coordinates = results.data.map((row) => [
-              parseFloat(row.Longitude || row.longitude),
-              parseFloat(row.Latitude || row.latitude),
-            ]);
+    const getDynamicColor = (index) => {
+      return dynamicColors[index % dynamicColors.length];
+    };
 
-            if (isPirate) {
-              parseFunction(coordinates);
-            } else {
-              // Determine if the path is predefined or dynamic
-              const predefinedRouteKeys = {
-                safe: 1,
-                fuel: 2,
-                short: 3,
-              };
+    const fetchCSV = (url, parseFunction, isPirate = false, dynamicIndex = null) => {
+      fetch(`${url}?t=${Date.now()}`)
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`Network response was not ok for ${url}`);
+          }
+          return response.text();
+        })
+        .then((data) => {
+          Papa.parse(data, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+              const coordinates = results.data.map((row) => [
+                parseFloat(row.Longitude || row.longitude),
+                parseFloat(row.Latitude || row.latitude),
+              ]);
 
-              const match = url.match(/path_(\w+)_smoothed\.csv$/);
-              if (match) {
-                const key = match[1];
-                const routeId = predefinedRouteKeys[key];
+              if (isPirate) {
+                setPirateCoordinates(coordinates);
+              } else {
+                const predefinedRouteKeys = {
+                  safe: 1,
+                  fuel: 2,
+                  short: 3,
+                };
 
-                if (routeId) {
-                  // Predefined route
-                  parseFunction(routeId, coordinates);
+                const match = url.match(/path_(\w+)_smoothed\.csv$/);
+                if (match) {
+                  const key = match[1];
+                  const routeId = predefinedRouteKeys[key];
+                  if (routeId) {
+                    parseFunction(routeId, coordinates);
+                  }
                 } else if (dynamicIndex !== null) {
                   // Dynamic route
-                  // Check if this dynamic route has already been fetched
                   if (!fetchedDynamicRoutesRef.current.has(url)) {
-                    let newRoute = {}
-                    if (dynamicIndex == 1) {
-                      newRoute = {
-                        id: dynamicRouteIdRef.current,
-                        coordinates: coordinates,
-                        color: getDynamicColor(dynamicRouteIdRef.current - 4),
-                        visible: true, // Set to true or false based on your preference
-                        name: `Optimal Path ${dynamicRouteIdRef.current - 3}`,
-                        description: `Optimal Path ${dynamicRouteIdRef.current - 3}`,
-                      };
-                    }
-                    else {
-                      newRoute = {
-                        id: dynamicRouteIdRef.current,
-                        coordinates: coordinates,
-                        color: getDynamicColor(dynamicRouteIdRef.current - 4),
-                        visible: false, // Set to true or false based on your preference
-                        name: `Optimal Path ${dynamicRouteIdRef.current - 3}`,
-                        description: `Optimal Path ${dynamicRouteIdRef.current - 3}`,
-                      };
-                    }
+                    const newRoute = {
+                      id: dynamicRouteIdRef.current,
+                      coordinates: coordinates,
+                      color: getDynamicColor(dynamicRouteIdRef.current - 4),
+                      visible: true,
+                      name: `Optimal Path ${dynamicRouteIdRef.current - 3}`,
+                      description: `Optimal Path ${dynamicRouteIdRef.current - 3}`,
+                    };
                     setRoutes((prevRoutes) => [...prevRoutes, newRoute]);
                     fetchedDynamicRoutesRef.current.add(url);
                     console.log(`Added new dynamic route: ${newRoute.name}`);
                     dynamicRouteIdRef.current += 1;
                   } else {
-                    // Dynamic route already fetched
                     console.log(`Dynamic route ${url} already fetched.`);
                   }
                 }
               }
-            }
-          },
+            },
+          });
+        })
+        .catch((error) => {
+          console.error(`Error fetching ${url}:`, error);
         });
-      })
-      .catch((error) => {
-        console.error(`Error fetching ${url}:`, error);
-      });
-  };
+    };
 
-  // Function to fetch all CSV data
-  const fetchAllData = () => {
-    // Fetch pirate coordinates
-    fetchCSV("/filtered_coordinates.csv", setPirateCoordinates, true);
+    // Once we know nsgaPathsLength, fetch all data
+    const fetchAllData = () => {
+      // Fetch pirate coordinates
+      fetchCSV("/filtered_coordinates.csv", null, true);
 
-    // Fetch predefined routes
-    fetchCSV("/path_safe_smoothed.csv", updateCoordinates);
-    fetchCSV("/path_fuel_smoothed.csv", updateCoordinates);
-    fetchCSV("/path_short_smoothed.csv", updateCoordinates);
+      // Fetch predefined routes
+      fetchCSV("/path_safe_smoothed.csv", updateCoordinates);
+      fetchCSV("/path_fuel_smoothed.csv", updateCoordinates);
+      fetchCSV("/path_short_smoothed.csv", updateCoordinates);
 
-    // Fetch additional dynamic routes using a for loop
-    for (let i = 0; i <= nsga_paths_length; i++) {
-      const routePath = `/path_${i}_smoothed.csv`;
-      fetchCSV(routePath, updateCoordinates, false, i);
-    }
-  };
+      // Fetch dynamic routes based on nsgaPathsLength
+      for (let i = 1; i <= nsgaPathsLength; i++) {
+        const routePath = `/path${i}.csv`;
+        fetchCSV(routePath, updateCoordinates, false, i);
+      }
+    };
 
-  // Initial fetch
-  fetchAllData();
-
-  // Set up polling interval (e.g., every 3 seconds)
-  const intervalId = setInterval(fetchAllData, 3000); 
-
-  // Cleanup interval on component unmount
-  return () => clearInterval(intervalId);
-}, [nsga_paths_length]);
+    fetchAllData();
+  }, [nsgaPathsLength]);
 
   return (
     <div className="flex flex-col h-screen">
