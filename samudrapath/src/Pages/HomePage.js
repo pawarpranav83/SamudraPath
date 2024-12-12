@@ -51,7 +51,6 @@ const HomePage = () => {
   const [selectedSubtype, setSelectedSubtype] = useState("");
   const [sourceCoordinates, setSourceCoordinates] = useState(null);
   const [destinationCoordinates, setDestinationCoordinates] = useState(null);
-  const [carriageWeight, setCarriageWeight] = useState("");
 
   const [routes, setRoutes] = useState([
     {
@@ -240,7 +239,7 @@ const HomePage = () => {
     fetchCSV("/path_short_smoothed.csv", updateCoordinates);
 
     // Fetch additional dynamic routes using a for loop
-    for (let i = 1; i <= nsga_paths_length; i++) {
+    for (let i = 0; i <= nsga_paths_length; i++) {
       const routePath = `/path_${i}_smoothed.csv`;
       fetchCSV(routePath, updateCoordinates, false, i);
     }
@@ -270,8 +269,6 @@ const HomePage = () => {
           departureTime={departureTime}
           setDepartureTime={setDepartureTime}
           shipCategories={shipCategories}
-          carriageWeight={carriageWeight}
-          setCarriageWeight={setCarriageWeight}
           handleCategoryChange={handleCategoryChange}
           handleSubtypeChange={handleSubtypeChange}
           setSourceCoordinates={setSourceCoordinates}

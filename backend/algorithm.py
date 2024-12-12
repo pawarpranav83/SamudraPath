@@ -1,24 +1,29 @@
 import numpy as np
 import heapq
-import matplotlib.pyplot as plt
 import rasterio
 from rasterio.enums import Resampling
 import math
 import pandas as pd
 import csv
-import json
 import argparse
+import matplotlib
+matplotlib.use('Agg')
 
 # ---------------------- Constants and Parameters ---------------------- #
-
+total_path_points=0
 MAXT_time = 1e-3
 MAXT_fuel = 1e-3
 MAXT_safe = 1e-3
 # Earth's radius in kilometers
 EARTH_RADIUS_KM = 6371  
 
+WIND_SPEED_THRESHOLD = 15.0       # Example threshold in m/s
+WAVE_HEIGHT_THRESHOLD = 5.0       # Example threshold in meters
+CURRENT_SPEED_THRESHOLD = 2.0  
+E_speed=0
+
 rho = 1.225
-# Define global variables at the top of your script
+# Ship parameters (Adjust based on actual ship specifications)
 D = None  # Ship displacement (tonnes)
 Cp = None  # Wind pressure coefficient
 Af = None  # Frontal area of the ship (m²)
@@ -32,6 +37,8 @@ a1 = None  # Weight for wind risk
 a2 = None  # Weight for wave risk
 pirate_risk_factor = None  # Weight for pirate risk
 ship_speed_global = None  # Ship's hydrostatic speed in km/h
+
+ecological_area=[[]]
 
 # Risk threshold
 RISK_THRESHOLD = 0.6
@@ -99,44 +106,43 @@ def angle_difference(angle1, angle2):
         diff += 2 * math.pi
     return diff
 
-def calculate_u10max(Cp, Af, Z):
+def calculate_risk(wind_speed, wind_direction_deg, wave_height, current_speed_ns, current_speed_ew):
     """
-    Calculate the maximum crosswind the ship can withstand (u10max).
-    Based on provided formula (Equation 8).
+    Calculate combined risk based on wind, wave, and pirate attacks.
+    
+    Parameters:
+    - wind_speed (float): Wind speed in m/s.
+    - wind_direction_deg (float): Wind direction in degrees.
+    - wave_height (float): Wave height in meters.
+    - current_speed_ns (float): North-South component of current speed in m/s.
+    - current_speed_ew (float): East-West component of current speed in m/s.
+    
+    Returns:
+    - risk (float): Combined risk value between 0 and 1.
     """
-    # Placeholder calculation:
-    # Replace with the accurate formula as needed.
-    u10max = 40 * (10 / Z) ** (1/8) * (Cp * Af * Z)
-    return u10max
-
-def calculate_risk_wind(ucross, u10max):
-    """
-    Calculate the wind risk for a segment.
-    """
-    if ucross < u10max:
-        return ucross / u10max
-    else:
-        return 1.0
-
-def calculate_risk_wave(T_theta, TE):
-    """
-    Calculate the wave risk for a segment based on resonance theory.
-    """
-    ratio = T_theta / TE
-    if 0 <= ratio < 1:
-        return ratio
-    elif 1 <= ratio < 2:
-        return 2 - ratio
-    else:
-        return 0.0
-
-def calculate_risk(risk_wind, risk_wave, a1=1/3, a2=1/3):
-    """
-    Combine wind and wave risks.
-    """
-    return a1 * risk_wind + a2 * risk_wave
-
-def calculate_actual_speed(V0, h, q, alpha, F, wind_dir_rad, usurf, vsurf, theta_ship):
+    risk = 0
+    
+    # Wind risk (higher speed = higher risk)
+    if wind_speed > WIND_SPEED_THRESHOLD:
+        risk += 0.3  # 30% weight for wind risk
+    
+    # Wave risk (higher waves = higher risk)
+    if wave_height > WAVE_HEIGHT_THRESHOLD:
+        risk += 0.3  # 30% weight for wave risk
+    
+    # Current risk (stronger currents = higher risk)
+    # Corrected the calculation to use squares for accurate current speed magnitude
+    current_speed = np.sqrt(current_speed_ns**2 + current_speed_ew**2)  # Calculate total current speed
+    if current_speed > CURRENT_SPEED_THRESHOLD:
+        risk += 0.2  # 20% weight for current risk
+    
+    # Wind direction risk (example: headwinds can increase risk)
+    # Assuming wind_direction_deg is in [0, 360), and headwinds are between 0 and 180 degrees
+    if 0 <= wind_direction_deg <= 180:
+        risk += 0.2  # 20% weight for headwind risk
+    
+    return risk
+def calculate_actual_speed(V0, h, q, alpha, F, wind_dir_deg, usurf, vsurf, theta_ship):
     """
     Calculate the actual speed of the ship (Va) under wind and wave effects.
     Placeholder formula, adjust as needed.
@@ -151,12 +157,13 @@ def calculate_actual_speed(V0, h, q, alpha, F, wind_dir_rad, usurf, vsurf, theta
     
     # Ensure effective speed is non-negative
     return max(0.1, effective_speed)
-
 def valid_move(x, y, binary_map):
     """
     Check if a move is valid (within bounds and not an obstacle).
     """
-    return 0 <= x < binary_map.shape[0] and 0 <= y < binary_map.shape[1] and binary_map[x, y] == 0
+    global ecological_area
+    
+    return 0 <= x < binary_map.shape[0] and 0 <= y < binary_map.shape[1] and binary_map[x, y] == 0 and ecological_area[x,y]==0
 
 def line_of_sight(map_array, start, end):
     """
@@ -185,43 +192,10 @@ def line_of_sight(map_array, start, end):
             error += dx
     return True
 
-# ---------------------- Risk Calculation Functions ---------------------- #
-
-def calculate_risk_values(F, wind_dir_rad, h, usurf, vsurf, theta_ship, pirate_risk):
-    """
-    Calculate combined risk based on wind, wave, and pirate attacks.
-    """
-    # Lateral wind speed (ucross)
-    alpha = angle_difference(theta_ship, wind_dir_rad)
-    ucross = F * math.sin(alpha)
-    
-    # Calculate u10max
-    u10max = calculate_u10max(Cp, Af, Z)
-    
-    # Wind risk
-    risk_wind = calculate_risk_wind(ucross, u10max)
-    
-    # Wave period (T_theta)
-    g = 9.81  # Acceleration due to gravity (m/s^2)
-    T_theta = math.sqrt(h / g) if h > 0 else 0.0
-    
-    # Wave risk
-    risk_wave = calculate_risk_wave(T_theta, TE)
-    
-    # Combined wind and wave risk
-    risk_i = calculate_risk(risk_wind, risk_wave, a1, a2)
-    
-    # Incorporate pirate attack risk
-    pirate_risk_factor = 0.3  # Weight for pirate risk
-    combined_risk = risk_i + pirate_risk_factor * pirate_risk
-    # Ensure combined risk does not exceed 1
-    combined_risk = min(combined_risk, 1.0)
-    
-    return combined_risk
 
 # ---------------------- Modified Theta* Algorithm Implementations (No line-of-sight shortcuts) ---------------------- #
 
-def theta_star_shortest_path(start, goal, binary_map, wind_speed_map, wind_angle_map_rad, wave_height_map,
+def theta_star_shortest_path(start, goal, binary_map, wind_speed_map, wind_angle_map_deg, wave_height_map,
                              usurf_map, vsurf_map, ship_speed, lat_min, lon_min, lat_res, lon_res, grid_size):
     """
     Theta* pathfinding algorithm to find the shortest path (minimum travel time) ignoring risks.
@@ -273,9 +247,9 @@ def theta_star_shortest_path(start, goal, binary_map, wind_speed_map, wind_angle
             distance = haversine(lat1, lon1, lat2, lon2)
             
             # Get environmental data at neighbor
-            F = wind_speed_map[neighbor[0], neighbor[1]]
-            wind_dir = wind_angle_map_rad[neighbor[0], neighbor[1]]
-            h = wave_height_map[neighbor[0], neighbor[1]]
+            F = max(wind_speed_map[neighbor[0], neighbor[1]], 0.1)
+            wind_dir = wind_angle_map_deg[neighbor[0], neighbor[1]]
+            h = max(wave_height_map[neighbor[0], neighbor[1]], 0.1)  # Ensure h > 0
             usurf = usurf_map[neighbor[0], neighbor[1]]
             vsurf = vsurf_map[neighbor[0], neighbor[1]]
             
@@ -292,6 +266,8 @@ def theta_star_shortest_path(start, goal, binary_map, wind_speed_map, wind_angle
             alpha = angle_difference(theta_ship, wind_dir)
             
             Va = calculate_actual_speed(ship_speed, h, q, alpha, F, wind_dir, usurf, vsurf, theta_ship)
+            Va = max(Va, 0.1)
+
             
             # Time cost (hours)
             time_cost = distance / Va if Va > 0 else float('inf')
@@ -307,177 +283,13 @@ def theta_star_shortest_path(start, goal, binary_map, wind_speed_map, wind_angle
                 f = tentative_g + heuristic
                 heapq.heappush(open_list, (f, neighbor))
 
-def theta_star_weighted_path(
-    start, goal, binary_map, wind_speed_map, wind_angle_map_rad, wave_height_map,
-    usurf_map, vsurf_map, ship_speed, lat_min, lon_min, lat_res, lon_res, grid_size,
-    pirate_risk_map,
-    weight_shortest=0.5, weight_safest=0.3, weight_fuel=0.2,
-    a=0.1, b=0.05,
-    eta_h=1.0, eta_s=1.0, eta_e=1.0, c_sfoc=180
-):
-    global MAXT_time, MAXT_fuel, MAXT_safe
-    
-    """
-    Optimized Theta* pathfinding algorithm to find a path based on user-defined weights for
-    shortest path, safest path, and fuel consumption.
-
-    Returns:
-    - path: List of grid indices representing the path.
-    - total_weighted_cost: Combined cost based on the weights.
-    - normalized_total_time: Total travel time for the path, normalized.
-    - normalized_total_fuel: Total fuel consumption for the path, normalized.
-    - normalized_total_risk: Total cumulative risk for the path, normalized.
-    """
-
-    # Initialize open list, cost tracking and came_from dictionary
-    open_list = []
-    heapq.heappush(open_list, (0, start))
-    came_from = {start: start}
-    g_score = {start: 0}
-    total_time = {start: 0}
-    total_fuel = {start: 0}
-    total_risk = {start: 0}
-    
-    # Precompute start and goal lat-lon for heuristic
-    start_lat, start_lon = index_to_latlon(*start, lat_min, lon_min, lat_res, lon_res, grid_size)
-    goal_lat, goal_lon = index_to_latlon(*goal, lat_min, lon_min, lat_res, lon_res, grid_size)
-    
-    # Precompute heuristic based on Haversine distance
-    heuristic = haversine(start_lat, start_lon, goal_lat, goal_lon) / ship_speed / MAXT_time
-    f_score = {start: heuristic}
-
-    c = 0  # Debugging counter
-    
-    while open_list:
-        current_f, current = heapq.heappop(open_list)
-        
-        if current == goal:
-            # Reconstruct path
-            path = []
-            while current != came_from[current]:
-                path.append(current)
-                current = came_from[current]
-            path.append(start)
-            path.reverse()
-
-            # Normalize costs
-            normalized_total_fuel = total_fuel[goal] / MAXT_fuel if MAXT_fuel !=0 else 0
-            normalized_total_risk = total_risk[goal] / MAXT_safe if MAXT_safe !=0 else 0
-            normalized_total_time = total_time[goal] / MAXT_time if MAXT_time !=0 else 0
-
-            return path, g_score[goal], normalized_total_time, normalized_total_fuel, normalized_total_risk
-        
-        # Define possible movements (8-connected grid)
-        neighbors = [
-            (current[0] - 1, current[1]),     # North
-            (current[0] + 1, current[1]),     # South
-            (current[0], current[1] - 1),     # West
-            (current[0], current[1] + 1),     # East
-            (current[0] - 1, current[1] - 1), # Northwest
-            (current[0] - 1, current[1] + 1), # Northeast
-            (current[0] + 1, current[1] - 1), # Southwest
-            (current[0] + 1, current[1] + 1), # Southeast
-        ]
-        
-        for neighbor in neighbors:
-            if not valid_move(neighbor[0], neighbor[1], binary_map):
-                continue
-            
-            pirate_risk = pirate_risk_map[neighbor[0], neighbor[1]]
-            
-            lat1, lon1 = index_to_latlon(*current, lat_min, lon_min, lat_res, lon_res, grid_size)
-            lat2, lon2 = index_to_latlon(*neighbor, lat_min, lon_min, lat_res, lon_res, grid_size)
-            
-            distance = haversine(lat1, lon1, lat2, lon2)
-            
-            # Get wind speed and wave height once per neighbor
-            F = max(wind_speed_map[neighbor[0], neighbor[1]], 0.1)  # Ensure F > 0
-            wind_dir = wind_angle_map_rad[neighbor[0], neighbor[1]]
-            h = max(wave_height_map[neighbor[0], neighbor[1]], 0.1)  # Ensure h > 0
-            usurf = usurf_map[neighbor[0], neighbor[1]]
-            vsurf = vsurf_map[neighbor[0], neighbor[1]]
-            
-            wave_dir = math.atan2(vsurf, usurf) if usurf != 0 or vsurf != 0 else 0.0
-            dx = neighbor[1] - current[1]
-            dy = neighbor[0] - current[0]
-            theta_ship = math.atan2(dy, dx)
-            
-            q = angle_difference(theta_ship, wave_dir)
-            alpha = angle_difference(theta_ship, wind_dir)
-            
-            Va = calculate_actual_speed(ship_speed, h, q, alpha, F, wind_dir, usurf, vsurf, theta_ship)
-            if Va <= 0:
-                Va = 0.1  # Assign a minimal speed to avoid division by zero
-            
-            # Resistance and fuel cost calculations
-            R_t = holtrop_mennen(R=0, V=Va, D=1.0)
-            R_aw = calculate_added_resistance_waves(h)
-            R_aa = calculate_added_resistance_wind(F, Cp, Af)
-            R_tot = max(R_t + R_aw + R_aa, 1e-3)
-            
-            p_b = (R_tot * Va) / (eta_e * eta_h * eta_s)
-            p_b = max(p_b, 1e-3)  # Ensure p_b > 0
-            fuel_consumption = p_b * c_sfoc
-            fuel_cost = fuel_consumption * (distance / Va)
-            
-            # Risk calculations
-            alpha_angle = angle_difference(theta_ship, wind_dir)
-            ucross = F * math.sin(alpha_angle)
-            u10max = calculate_u10max(Cp, Af, Z)
-            risk_wind = calculate_risk_wind(ucross, u10max)
-            g = 9.81  # Acceleration due to gravity
-            T_theta = math.sqrt(h / g) if h > 0 else 0.0
-            risk_wave = calculate_risk_wave(T_theta, TE)
-            risk_i = calculate_risk(risk_wind, risk_wave, a, b)
-            pirate_risk_factor = 0.3
-            combined_risk = min(risk_i + pirate_risk_factor * pirate_risk, 1.0)
-            
-            # Combined cost calculations
-            cost_shortest = distance / Va
-            cost_fuel = fuel_cost
-            cost_safest = combined_risk * WEIGHTING_FACTOR
-            
-            # Debugging print statements
-            if c < 5:
-                print(f"norm_cost_shortest: {cost_shortest}, norm_cost_fuel: {cost_fuel}, norm_cost_safest: {cost_safest}")
-            
-            # Normalize costs
-            norm_cost_shortest = cost_shortest / MAXT_time if MAXT_time !=0 else 0
-            norm_cost_fuel = (cost_fuel / MAXT_fuel) * 10 if MAXT_fuel !=0 else 0
-            norm_cost_safest = (cost_safest / MAXT_safe) * 10 if MAXT_safe !=0 else 0
-            
-            # Compute weighted cost
-            weighted_cost = (weight_shortest * norm_cost_shortest) + \
-                            (weight_fuel * norm_cost_fuel) + \
-                            (weight_safest * norm_cost_safest)
-            
-            # Tentative g-score based on weighted cost
-            tentative_g = g_score[current] + weighted_cost
-            
-            # Debugging print
-            if c < 5:
-                print(f"weighted_cost: {weighted_cost}, tentative_g: {tentative_g}")
-            c += 1
-            new_total_time = total_time[current] + cost_shortest
-            new_total_fuel = total_fuel[current] + cost_fuel
-            new_total_risk = max(total_risk[current], cost_safest)
-            
-            # Update if this path yields a lower weighted cost
-            if neighbor not in g_score or tentative_g < g_score.get(neighbor, float('inf')):
-                came_from[neighbor] = current
-                g_score[neighbor] = tentative_g
-                total_time[neighbor] = new_total_time
-                total_fuel[neighbor] = new_total_fuel
-                total_risk[neighbor] = new_total_risk
-                heapq.heappush(open_list, (tentative_g + (heuristic) / MAXT_time if MAXT_time !=0 else tentative_g, neighbor))
-
-def theta_star_safest_path(start, goal, binary_map, wind_speed_map, wind_angle_map_rad, wave_height_map,
+def theta_star_safest_path(start, goal, binary_map, wind_speed_map, wind_angle_map_deg, wave_height_map,
                            usurf_map, vsurf_map, ship_speed, lat_min, lon_min, lat_res, lon_res, grid_size, pirate_risk_map):
     """
     Theta* pathfinding algorithm to find the safest path (minimize max risk) ensuring no segment exceeds RISK_THRESHOLD.
     Modified to avoid line-of-sight shortcutting.
     """
-    global MAXT_safe
+    global MAXT_safe, E_speed
     open_list = []
     heapq.heappush(open_list, (0, start))
     came_from = {start: start}
@@ -523,9 +335,9 @@ def theta_star_safest_path(start, goal, binary_map, wind_speed_map, wind_angle_m
             
             distance = haversine(lat1, lon1, lat2, lon2)
             
-            F = wind_speed_map[neighbor[0], neighbor[1]]
-            wind_dir = wind_angle_map_rad[neighbor[0], neighbor[1]]
-            h = wave_height_map[neighbor[0], neighbor[1]]
+            F = max(wind_speed_map[neighbor[0], neighbor[1]], 0.1)
+            wind_dir = wind_angle_map_deg[neighbor[0], neighbor[1]]
+            h = max(wave_height_map[neighbor[0], neighbor[1]], 0.1)  # Ensure h > 0
             usurf = usurf_map[neighbor[0], neighbor[1]]
             vsurf = vsurf_map[neighbor[0], neighbor[1]]
             
@@ -539,14 +351,12 @@ def theta_star_safest_path(start, goal, binary_map, wind_speed_map, wind_angle_m
             
             Va = calculate_actual_speed(ship_speed, h, q, alpha, F, wind_dir, usurf, vsurf, theta_ship)
             time_cost = distance / Va if Va > 0 else float('inf')
+            E_speed=Va
+            risk_i = calculate_risk(F,wind_dir,h,vsurf,usurf)+pirate_risk
+            Va = max(Va, 0.1)
             
-            risk_i = calculate_risk_values(F, wind_dir, h, usurf, vsurf, theta_ship, pirate_risk)
-            if risk_i > RISK_THRESHOLD:
-                continue  # Discard this route due to high risk
-            
-            combined_cost = time_cost + WEIGHTING_FACTOR * risk_i
+            combined_cost =  risk_i*WEIGHTING_FACTOR+time_cost+pirate_risk*WEIGHTING_FACTOR
             MAXT_safe = max(MAXT_safe, combined_cost)
-            # print(time_cost, WEIGHTING_FACTOR * risk_i)
             new_max_risk = max(total_risk[current], risk_i)
             
             tentative_g = g_score[current] + combined_cost
@@ -562,7 +372,7 @@ def theta_star_safest_path(start, goal, binary_map, wind_speed_map, wind_angle_m
                 heapq.heappush(open_list, (f, neighbor))
 
 def theta_star_min_fuel_path(
-    start, goal, binary_map, wind_speed_map, wind_angle_map_rad, wave_height_map,
+    start, goal, binary_map, wind_speed_map, wind_angle_map_deg, wave_height_map,
     usurf_map, vsurf_map, ship_speed, lat_min, lon_min, lat_res, lon_res, grid_size,
     pirate_risk_map,
     a=0.1, b=0.05,
@@ -583,7 +393,7 @@ def theta_star_min_fuel_path(
     # Heuristic based on minimal possible fuel consumption
     start_lat, start_lon = index_to_latlon(*start, lat_min, lon_min, lat_res, lon_res, grid_size)
     goal_lat, goal_lon = index_to_latlon(*goal, lat_min, lon_min, lat_res, lon_res, grid_size)
-    heuristic_fuel = a * math.exp(b * ship_speed) * haversine(start_lat, start_lon, goal_lat, goal_lon) / ship_speed
+    heuristic_fuel =  haversine(start_lat, start_lon, goal_lat, goal_lon) / ship_speed
     f_score = {start: heuristic_fuel}
     
     while open_list:
@@ -621,8 +431,8 @@ def theta_star_min_fuel_path(
             
             distance = haversine(lat1, lon1, lat2, lon2)
             
-            F = max(wind_speed_map[neighbor[0], neighbor[1]], 0.1)  # Ensure F > 0
-            wind_dir = wind_angle_map_rad[neighbor[0], neighbor[1]]
+            F = max(wind_speed_map[neighbor[0], neighbor[1]], 0.1)
+            wind_dir = wind_angle_map_deg[neighbor[0], neighbor[1]]
             h = max(wave_height_map[neighbor[0], neighbor[1]], 0.1)  # Ensure h > 0
             usurf = usurf_map[neighbor[0], neighbor[1]]
             vsurf = vsurf_map[neighbor[0], neighbor[1]]
@@ -636,8 +446,8 @@ def theta_star_min_fuel_path(
             alpha = angle_difference(theta_ship, wind_dir)
             
             Va = calculate_actual_speed(ship_speed, h, q, alpha, F, wind_dir, usurf, vsurf, theta_ship)
-            if Va <= 0:
-                Va = 0.1  # Assign a minimal speed to avoid division by zero
+            Va = max(Va, 0.1)
+
             
             # ------------------ Resistance Calculations ------------------ #
             
@@ -659,7 +469,7 @@ def theta_star_min_fuel_path(
             # ------------------ Fuel Consumption Calculations ------------------ #
             
             # Calculate p_b
-            p_b = (R_tot * Va) / (n_e * n_h * n_s)
+            p_b = (R_tot * ship_speed) / (n_e * n_h * n_s)
             p_b = max(p_b, 1e-3)  # Ensure p_b > 0
             
             # Fuel Consumption Estimate
@@ -667,6 +477,9 @@ def theta_star_min_fuel_path(
             
             # Fuel Cost (Fuel consumption over the distance segment)
             fuel_cost = fuel_consumption * (distance / Va)
+
+            # fc=100*(1+0.1*(h/Va+F/Va))
+            # fuel_consumption=fc*(distance/Va)
             MAXT_fuel = max(fuel_cost, MAXT_fuel)
             
             # Incorporate pirate risk into fuel consumption
@@ -674,48 +487,17 @@ def theta_star_min_fuel_path(
             
             tentative_fuel = fuel_score[current] + fuel_cost
             tentative_time = total_time[current] + (distance / Va)  # Calculate time for this segment
-            
+            tentative_cost=tentative_fuel+tentative_time
             if neighbor not in fuel_score or tentative_fuel < fuel_score[neighbor]:
                 came_from[neighbor] = current
                 fuel_score[neighbor] = tentative_fuel
                 total_time[neighbor] = tentative_time  # Update the total time for the neighbor
                 neighbor_lat, neighbor_lon = index_to_latlon(neighbor[0], neighbor[1], lat_min, lon_min, lat_res, lon_res, grid_size)
-                heuristic = a * math.exp(b * ship_speed) * haversine(neighbor_lat, neighbor_lon, goal_lat, goal_lon) / ship_speed
-                f = tentative_fuel + heuristic
+                heuristic = haversine(neighbor_lat, neighbor_lon, goal_lat, goal_lon) / ship_speed
+                f = tentative_cost + heuristic
                 heapq.heappush(open_list, (f, neighbor))
 
-# ---------------------- Placeholder Functions ---------------------- #
 
-def holtrop_mennen(R, V, D):
-    """
-    Placeholder for the Holtrop-Mennen method to calculate calm water resistance (R_t).
-    Implement the actual Holtrop-Mennen method or integrate with a hydrodynamic model.
-    """
-    # For demonstration, we'll use a simple empirical formula
-    # Replace with actual Holtrop-Mennen implementation
-    # R_t = a * V^2 + b * V + c
-    a = 0.02
-    b = 1.5
-    c = 100
-    return a * V**2 + b * V + c   
-
-def calculate_added_resistance_waves(h):
-    """
-    Calculate the added resistance due to waves (R_aw).
-    Implement based on relevant hydrodynamic formulas or standards.
-    """
-    # Placeholder formula; replace with actual calculation
-    return 50 * h  # Example: linear relation with wave height
-
-def calculate_added_resistance_wind(F, Cp, Af):
-    """
-    Calculate the added resistance due to wind (R_aa) based on ISO 15016:2015(E).
-    """
-    # ISO 15016:2015(E) formula implementation
-    # R_aa = 0.5 * rho * Cp * Af * F^2
-    return 0.5 * rho * Cp * Af * F**2
-
-# ---------------------- Data Loading and Preparation ---------------------- #
 
 def load_data():
     """
@@ -723,7 +505,7 @@ def load_data():
     weighted
     Returns:
     - binary_map: 2D numpy array representing obstacles
-    - wind_speed_map, wind_angle_map_rad, wave_height_map, usurf_map, vsurf_map: Environmental data
+    - wind_speed_map, wind_angle_map_deg, wave_height_map, usurf_map, vsurf_map: Environmental data
     - lat_min, lon_min, lat_res, lon_res: Map parameters
     - grid_size: Size of the grid (assumed square)
     """
@@ -752,7 +534,7 @@ def load_data():
     
     # Define map bounds
     lat_min, lat_max = -60, 30
-    lon_min, lon_max = 20, 120
+    lon_min, lon_max = 30, 120
     lat_res = (lat_max - lat_min) / target_shape[0]
     lon_res = (lon_max - lon_min) / target_shape[1]
     
@@ -764,16 +546,16 @@ def load_data():
     vsurf_map = np.load('vsurf_data.npy')                # Water current north-south component (m/s)
     
     # Convert wind angles from degrees to radians
-    wind_angle_map_rad = np.radians(wind_angle_map_deg)
+    # wind_angle_map_rad = np.radians(wind_angle_map_deg)
     
     # Ensure all loaded maps have the correct shape
     assert wind_speed_map.shape == target_shape, "Wind speed map shape mismatch."
-    assert wind_angle_map_rad.shape == target_shape, "Wind angle map shape mismatch."
+    assert wind_angle_map_deg.shape == target_shape, "Wind angle map shape mismatch."
     assert wave_height_map.shape == target_shape, "Wave height map shape mismatch."
     assert usurf_map.shape == target_shape, "usurf map shape mismatch."
     assert vsurf_map.shape == target_shape, "vsurf map shape mismatch."
     
-    return binary_map, wind_speed_map, wind_angle_map_rad, wave_height_map, usurf_map, vsurf_map, lat_min, lon_min, lat_res, lon_res, grid_size
+    return binary_map, wind_speed_map, wind_angle_map_deg, wave_height_map, usurf_map, vsurf_map, lat_min, lon_min, lat_res, lon_res, grid_size
 
 # ---------------------- Pirate Attack Processing ---------------------- #
 
@@ -815,50 +597,7 @@ def load_pirate_attacks(csv_file, lat_min, lon_min, lat_res, lon_res, grid_size,
     
     return pirate_risk_map
 
-# ---------------------- Visualization Functions ---------------------- #
 
-def plot_paths(binary_map, path_shortest, path_safest, path_fuel, path_weighted, lat_min, lon_min, lat_res, lon_res, grid_size, new_position=None):
-    """
-    Plot the shortest, safest, fuel-efficient, and weighted paths on the map.
-    Optionally, plot the new ship position.
-    """
-    plt.figure(figsize=(12, 10))
-    plt.imshow(binary_map, cmap='gray', origin='upper')
-    
-    if path_shortest:
-        path_x_short, path_y_short = zip(*path_shortest)
-        plt.plot(path_y_short, path_x_short, color='red', linewidth=2, label='Route 1: Shortest Path')
-    
-    if path_safest:
-        path_x_saf, path_y_saf = zip(*path_safest)
-        plt.plot(path_y_saf, path_x_saf, color='blue', linewidth=2, label='Route 2: Safest Path')
-    
-    if path_fuel:
-        path_x_fuel, path_y_fuel = zip(*path_fuel)
-        plt.plot(path_y_fuel, path_x_fuel, color='green', linewidth=2, label='Route 3: Fuel-Efficient Path')
-    
-    if path_weighted:
-        path_x_weighted, path_y_weighted = zip(*path_weighted)
-        plt.plot(path_y_weighted, path_x_weighted, color='pink', linewidth=2, label='Route 4: Weighted Path')
-    
-    # Mark start and goal
-    if path_shortest:
-        plt.scatter([path_shortest[0][1], path_shortest[-1][1]],
-                    [path_shortest[0][0], path_shortest[-1][0]],
-                    c=['green', 'yellow'], marker='o', label='Start/Goal')
-    
-    # Plot new ship position if provided
-    if new_position:
-        new_lat, new_lon = new_position
-        new_x, new_y = latlon_to_index(new_lat, new_lon, lat_min, lon_min, lat_res, lon_res, grid_size)
-        plt.scatter(new_y, new_x, c='cyan', marker='x', s=100, label='New Position (After 3 Hours)')
-    
-    plt.legend()
-    plt.title("Theta* Pathfinding: Routes 1-4")
-    plt.xlabel("Longitude Index")
-    plt.ylabel("Latitude Index")
-    plt.grid(False)
-    plt.show()
 
 # ---------------------- CSV Saving Function ---------------------- #
 
@@ -884,7 +623,7 @@ def save_path_as_latlon_csv(path, lat_min, lon_min, lat_res, lon_res, grid_size,
 
 # ---------------------- Simulate Travel Function ---------------------- #
 
-def simulate_travel(path, wind_speed_map, wind_angle_map_rad, wave_height_map, usurf_map, vsurf_map, pirate_risk_map, lat_min, lon_min, lat_res, lon_res, grid_size, ship_params, travel_time=3.0):
+def simulate_travel(path, wind_speed_map, wind_angle_map_deg, wave_height_map, usurf_map, vsurf_map, pirate_risk_map, lat_min, lon_min, lat_res, lon_res, grid_size, ship_params, travel_time=3.0):
     """
     Simulate the ship traveling along the selected path for a specified amount of time (in hours).
     
@@ -915,7 +654,7 @@ def simulate_travel(path, wind_speed_map, wind_angle_map_rad, wave_height_map, u
 
         # Retrieve environmental data for the neighbor cell
         F = wind_speed_map[neighbor[0], neighbor[1]]
-        wind_dir = wind_angle_map_rad[neighbor[0], neighbor[1]]
+        wind_dir = wind_angle_map_deg[neighbor[0], neighbor[1]]
         h = wave_height_map[neighbor[0], neighbor[1]]
         usurf = usurf_map[neighbor[0], neighbor[1]]
         vsurf = vsurf_map[neighbor[0], neighbor[1]]
@@ -940,7 +679,7 @@ def simulate_travel(path, wind_speed_map, wind_angle_map_rad, wave_height_map, u
             q=q,
             alpha=alpha,
             F=F,
-            wind_dir_rad=wind_dir,
+            wind_dir_deg=wind_dir,
             usurf=usurf,
             vsurf=vsurf,
             theta_ship=theta_ship
@@ -966,108 +705,55 @@ def simulate_travel(path, wind_speed_map, wind_angle_map_rad, wave_height_map, u
 # ---------------------- Main Execution ---------------------- #
 
 def calculate_path_metrics(
-    path, wind_speed_map, wind_angle_map_rad, wave_height_map, usurf_map, vsurf_map, pirate_risk_map,
-    lat_min, lon_min, lat_res, lon_res, grid_size, ship_params
+    path,
+    wind_speed_map,
+    wind_angle_map_deg,
+    wave_height_map,
+    usurf_map,
+    vsurf_map,
+    pirate_risk_map,
+    lat_min,
+    lon_min,
+    lat_res,
+    lon_res,
+    grid_size,
+    ship_params
 ):
-    total_time = 0.0
-    total_fuel = 0.0
-    total_risk = 0.0  # Cumulative risk
-
-    # Ensure ship parameters are valid
-    ship_speed = ship_params.get('ship_speed', 40)
-    if not ship_speed or ship_speed <= 0:
-        raise ValueError("Invalid ship speed in parameters.")
-
-    # Precompute u10max
-    u10max = calculate_u10max(Cp, Af, Z)
-    if u10max is None:
-        raise ValueError("Failed to calculate `u10max`.")
-
-    # Iterate through path segments
-    for idx in range(len(path) - 1):
-        current, neighbor = path[idx], path[idx + 1]
-
-        # Retrieve coordinates
-        lat1, lon1 = index_to_latlon(*current, lat_min, lon_min, lat_res, lon_res, grid_size)
-        lat2, lon2 = index_to_latlon(*neighbor, lat_min, lon_min, lat_res, lon_res, grid_size)
-
-        # Calculate distance
-        distance_km = haversine(lat1, lon1, lat2, lon2)
-        if distance_km is None or distance_km <= 0:
-            print(f"Invalid distance between {current} and {neighbor}.")
-            continue
-
-        # Environmental data
-        F = wind_speed_map[neighbor[0], neighbor[1]]
-        wind_dir = wind_angle_map_rad[neighbor[0], neighbor[1]]
-        h = wave_height_map[neighbor[0], neighbor[1]]
-        usurf = usurf_map[neighbor[0], neighbor[1]]
-        vsurf = vsurf_map[neighbor[0], neighbor[1]]
-        pirate_risk = pirate_risk_map[neighbor[0], neighbor[1]]
-
-        # Ship heading
-        dx, dy = neighbor[1] - current[1], neighbor[0] - current[0]
-        theta_ship = math.atan2(dy, dx)
-
-        # Relative angles
-        q = angle_difference(theta_ship, math.atan2(vsurf, usurf))
-        alpha = angle_difference(theta_ship, wind_dir)
-
-        # Calculate actual speed
-        Va = calculate_actual_speed(ship_speed, h, q, alpha, F, wind_dir, usurf, vsurf, theta_ship)
-        if Va is None or Va <= 0:
-            print(f"Invalid speed at segment {idx}. Va={Va}")
-            continue
-
-        # Time for this segment
-        time_hours = distance_km / Va
-        total_time += time_hours
-
-        # Resistance and fuel
-        R_t = holtrop_mennen(R=0, V=Va, D=D) or 0
-        R_aw = calculate_added_resistance_waves(h) or 0
-        R_aa = calculate_added_resistance_wind(F, Cp, Af) or 0
-        R_tot = R_t + R_aw + R_aa
-        if R_tot <= 0:
-            print(f"Invalid resistance values: R_t={R_t}, R_aw={R_aw}, R_aa={R_aa}")
-            R_tot = 1e-3  # Prevent division by zero
-
-        # Fuel consumption
-        p_b = (R_tot * Va) / (n_e * n_h * n_s)
-        p_b = max(p_b, 1e-3)
-        fuel_consumption = p_b * csfoc
-        total_fuel += fuel_consumption * time_hours
-
-        # Risk
-        risk_wind = calculate_risk_wind(F * math.sin(alpha), u10max)
-        risk_wave = calculate_risk_wave(math.sqrt(h / 9.81) if h > 0 else 0.0, TE)
-        combined_risk = calculate_risk(risk_wind, risk_wave, a1, a2) + pirate_risk_factor * pirate_risk
-        total_risk += min(combined_risk, 1.0)
-
-    # Return results
-    avg_risk = (total_risk / len(path)) * 100 if path else 0.0
-    return total_time, (total_fuel / 850) * 0.264172, avg_risk
-
-# ---------------------- Simulate Travel Function ---------------------- #
-
-def simulate_travel(path, wind_speed_map, wind_angle_map_rad, wave_height_map, usurf_map, vsurf_map, pirate_risk_map, lat_min, lon_min, lat_res, lon_res, grid_size, ship_params, travel_time=3.0):
     """
-    Simulate the ship traveling along the selected path for a specified amount of time (in hours).
+    Calculate total time, fuel, and risk for a given path based on environmental and ship parameters.
     
     Parameters:
-    - path (list of tuples): List of grid coordinates (lat, lon) for the path.
-    - wind_speed_map, wind_angle_map_rad, wave_height_map, usurf_map, vsurf_map: Environmental data.
-    - pirate_risk_map (2D array): Pirate risk at each grid cell.
-    - lat_min, lon_min, lat_res, lon_res (floats): Map parameters.
-    - grid_size (int): Size of the grid.
-    - ship_params (dict): Ship parameters for calculations.
-    - travel_time (float): Time to travel in hours (default is 3.0).
+    path (list of tuples): List of grid coordinates (lat, lon) for the path.
+    wind_speed_map (2D array): Wind speed at each grid cell.
+    wind_angle_map_rad (2D array): Wind angle (in radians) at each grid cell.
+    wave_height_map (2D array): Wave height at each grid cell.
+    usurf_map (2D array): East-west water current component.
+    vsurf_map (2D array): North-south water current component.
+    pirate_risk_map (2D array): Pirate risk at each grid cell.
+    lat_min (float): Minimum latitude of the grid.
+    lon_min (float): Minimum longitude of the grid.
+    lat_res (float): Latitude resolution of the grid.
+    lon_res (float): Longitude resolution of the grid.
+    grid_size (int): Size of the grid (assumed square).
+    ship_params (dict): Ship parameters for risk and fuel calculations.
     
     Returns:
-    - new_position (tuple): New latitude and longitude after traveling.
+    total_time (float): Total time in hours for the entire path.
+    total_fuel (float): Total fuel consumption in gallons for the entire path.
+    total_risk (float): Total cumulative risk for the path.
     """
     total_time = 0.0
+    total_fuel = 0.0
+    total_risk = 0.0  # Assuming cumulative risk along the path
 
+    global total_path_points
+    # Unpack ship parameters
+
+    print("total_path_points ",total_path_points)
+    # Precompute u10max (assuming constant across the map; adjust if variable)
+    # u10max = calculate_u10max(Cp, Af, Z)
+    max_risk=0
+    # Iterate through each segment of the path
     for idx in range(len(path) - 1):
         current = path[idx]
         neighbor = path[idx + 1]
@@ -1079,10 +765,13 @@ def simulate_travel(path, wind_speed_map, wind_angle_map_rad, wave_height_map, u
         # Calculate Haversine distance in kilometers
         distance_km = haversine(lat1, lon1, lat2, lon2)
 
+        # Convert distance to meters for consistency (optional)
+        # distance_m = distance_km * 1000
+
         # Retrieve environmental data for the neighbor cell
-        F = wind_speed_map[neighbor[0], neighbor[1]]
-        wind_dir = wind_angle_map_rad[neighbor[0], neighbor[1]]
-        h = wave_height_map[neighbor[0], neighbor[1]]
+        F = max(wind_speed_map[neighbor[0], neighbor[1]], 0.1)
+        wind_dir = wind_angle_map_deg[neighbor[0], neighbor[1]]
+        h = max(wave_height_map[neighbor[0], neighbor[1]], 0.1)  # Ensure h > 0
         usurf = usurf_map[neighbor[0], neighbor[1]]
         vsurf = vsurf_map[neighbor[0], neighbor[1]]
         pirate_risk = pirate_risk_map[neighbor[0], neighbor[1]]
@@ -1106,33 +795,45 @@ def simulate_travel(path, wind_speed_map, wind_angle_map_rad, wave_height_map, u
             q=q,
             alpha=alpha,
             F=F,
-            wind_dir_rad=wind_dir,
+            wind_dir_deg=wind_dir,
             usurf=usurf,
             vsurf=vsurf,
             theta_ship=theta_ship
         )
+        Va = max(Va, 0.1)
 
         # Calculate time for this segment (hours)
         time_hours = distance_km / Va if Va > 0 else float('inf')
+        total_time += time_hours
 
-        if total_time + time_hours >= travel_time:
-            # Calculate the remaining time fraction
-            remaining_time = travel_time - total_time
-            fraction = remaining_time / time_hours
-            # Calculate new latitude and longitude based on the fraction
-            new_lat = lat1 + (lat2 - lat1) * fraction
-            new_lon = lon1 + (lon2 - lon1) * fraction
-            return (new_lat, new_lon)
-        else:
-            total_time += time_hours
+        # Resistance Calculations
+        R_t = holtrop_mennen(R=0, V=Va, D=D)
+        R_aw = calculate_added_resistance_waves(h)
+        R_aa = calculate_added_resistance_wind(F, Cp=Cp, Af=Af)
+        R_tot = R_t + R_aw + R_aa
+        R_tot = max(R_tot, 1e-3)  # Prevent division by zero
 
-    # If the entire path is traversed within travel_time, return the goal position
-    return index_to_latlon(*path[-1], lat_min, lon_min, lat_res, lon_res, grid_size)
+        # Fuel Consumption Calculations
+        p_b = (R_tot * ship_speed_global) / (n_e * n_h * n_s)
+        p_b = max(p_b, 1e-3)  # Prevent division by zero
+        fuel_consumption = p_b * csfoc  # Units: g/kWh * (kWh) = grams
+        fuel_cost = fuel_consumption * (distance_km / Va)  # Adjust units as needed
+        total_fuel += fuel_cost
+
+        risk_i = calculate_risk(F,wind_dir,h,vsurf,usurf)*WEIGHTING_FACTOR+pirate_risk*WEIGHTING_FACTOR
+        # combined_cost =  risk_i*WEIGHTING_FACTOR+time_cost+pirate_risk
+        max_risk=max_risk+risk_i
+
+    return total_time, ((total_fuel)/850)*0.264172, ((max_risk)/len(path))*100
 
 # ---------------------- Main Function ---------------------- #
+# def ecologicalarea()
 
-def main(start_lat, start_lon, goal_lat, goal_lon, ship_speed, ship_dis, area_front, ship_height, ship_reso, hull_eff, prop_eff, engine_eff, c_sfoc, user_weight_shortest = 0.25, user_weight_safest = 0.375, user_weight_fuel = 0.375):
+def main(start_lat, start_lon, goal_lat, goal_lon, ship_speed, ship_dis, area_front, ship_height, ship_reso, hull_eff, prop_eff, engine_eff, c_sfoc):
     # Load data
+    binary_map, wind_speed_map, wind_angle_map_deg, wave_height_map, usurf_map, vsurf_map, lat_min, lon_min, lat_res, lon_res, grid_size = load_data()
+    global ecological_area
+
     global D, Cp, Af, Z, TE, n_h, n_s, n_e, a1, a2, pirate_risk_factor, ship_speed_global, csfoc
     
     # Assign values to global variables
@@ -1152,23 +853,63 @@ def main(start_lat, start_lon, goal_lat, goal_lon, ship_speed, ship_dis, area_fr
 
     print("Global variables initialized:")
     print(f"D = {D}, Cp = {Cp}, Af = {Af}, Z = {Z}, TE = {TE}, n_h = {n_h}, n_s = {n_s}, n_e = {n_e}, csfoc = {csfoc}")
-   
 
-    binary_map, wind_speed_map, wind_angle_map_rad, wave_height_map, usurf_map, vsurf_map, lat_min, lon_min, lat_res, lon_res, grid_size = load_data()
-    
     # Load and process pirate attacks
-    pirate_risk_map = load_pirate_attacks(
-        csv_file='filtered_coordinates.csv',
-        lat_min=lat_min,
-        lon_min=lon_min,
-        lat_res=lat_res,
-        lon_res=lon_res,
-        grid_size=grid_size,
-        buffer_degree=0.5
-    )
+    pirate_risk_map = np.zeros((grid_size, grid_size))
+    for i in range (100,200):
+        for j in range(200,380):
+            pirate_risk_map[i][j]=0.6
+    for i in range (200,400):
+        for j in range(180,380):
+            pirate_risk_map[i][j]=0.3
+    for i in range (200,400):
+        for j in range(700,900):
+            pirate_risk_map[i][j]=0.3
+
+    depth_data=np.load('depth_data.npy')
+    # print(len(depth_data))
+    ecological_area=np.zeros((grid_size,grid_size))
+    # for i in range(grid_size):
+    #     for j in range(grid_size):
+    #         # print(depth_data)
+    #         if(depth_data[i][j]<15):
+    #             print(i,j)
+    #             ecological_area[i][j]=1
+    data=[[[-5,-8],[70,74]],[[-8,-10],[45,48]],[[5,8],[92,95]],[[-2,-6],[55,58]]]
+    for i in data:
+        # print("HELLO ",i)
+        i1,j1=latlon_to_index(i[0][0],i[1][0],lat_min,lon_min,lat_res,lon_res,grid_size)
+        i2,j2=latlon_to_index(i[0][1],i[1][1],lat_min,lon_min,lat_res,lon_res,grid_size)
+        # print(i1,j1,i2,j2)
+        for k in range(min(i1,i2),max(i1,i2)):
+            for p in range(min(j1,j2),max(j1,j2)):
+                ecological_area[k][p]=1
 
 
+    global total_path_points
+    # print(len(wind_speed_map))
+    # for i in range(300,350):
+    #     for j in range(350,600):
+    #         usurf_map[i][j]=2
+    # for i in range(300,350):
+    #     for j in range(350,600):
+    #         vsurf_map[i][j]=3
+    # for i in range(300,350):
+    #     for j in range(350,600):
+    #         wind_speed_map[i][j]=70
+    # for i in range(300,350):
+    #     for j in range(350,600):
+    #         wave_height_map[i][j]=15
+    
+
+
+    # for i in range(300,350):
+    #     for j in range(400,450):
+    #         wind_speed_map[i][j]=100
+    # Visualization of Wind Speed Map
+    
     def save_plot(data, title, colorbar_label, filename, cmap='cool'):
+        import matplotlib.pyplot as plt
         plt.figure(figsize=(10, 8))
         plt.imshow(data, cmap=cmap, origin='upper')
         plt.colorbar(label=colorbar_label)
@@ -1178,30 +919,31 @@ def main(start_lat, start_lon, goal_lat, goal_lon, ship_speed, ship_dis, area_fr
         plt.grid(False)
         plt.savefig(filename, format='svg')
         plt.close()
-    
+
     save_plot(wind_speed_map, "Wind Speed Map", "Wind Speed (m/s)", "wind_speed_map.svg")
     save_plot(wave_height_map, "Wave Height Map", "Wave Height (m)", "wave_height_map.svg")
     save_plot(usurf_map, "East-West Water Current (USurf) Map", "U Surface Current (m/s)", "usurf_map.svg")
     save_plot(vsurf_map, "North-South Water Current (VSurf) Map", "V Surface Current (m/s)", "vsurf_map.svg")
-    
 
-   
-    start = latlon_to_index(start_lat, start_lon, lat_min, lon_min, lat_res, lon_res, grid_size)
-    goal = latlon_to_index(goal_lat, goal_lon, lat_min, lon_min, lat_res, lon_res, grid_size)
-    # goal = (450, 450)  # Overriding goal to center for example purposes
     
-    # Ensure start and goal are within bounds and not on obstacles
+    
+    
+    start = latlon_to_index(start_lat, start_lon, lat_min, lon_min, lat_res, lon_res, grid_size)
+
+    goal = latlon_to_index(goal_lat, goal_lon, lat_min, lon_min, lat_res, lon_res, grid_size)
     if not valid_move(*start, binary_map):
         raise ValueError("Start position is invalid or on an obstacle.")
     if not valid_move(*goal, binary_map):
         raise ValueError("Goal position is invalid or on an obstacle.")
     
+    # Ship's hydrostatic speed in km/h
+    ship_speed = 40  # km/h
     
     # Run Theta* algorithm for shortest path
     print("Calculating the shortest path (Route 1)...")
     path_shortest, total_time_shortest = theta_star_shortest_path(
         start, goal, binary_map,
-        wind_speed_map, wind_angle_map_rad,
+        wind_speed_map, wind_angle_map_deg,
         wave_height_map, usurf_map, vsurf_map,
         ship_speed, lat_min, lon_min, lat_res, lon_res, grid_size
     )
@@ -1210,7 +952,7 @@ def main(start_lat, start_lon, goal_lat, goal_lon, ship_speed, ship_dis, area_fr
     print("Calculating the safest path (Route 2)...")
     path_safest, total_time_safest, total_risk_safest = theta_star_safest_path(
         start, goal, binary_map,
-        wind_speed_map, wind_angle_map_rad,
+        wind_speed_map, wind_angle_map_deg,
         wave_height_map, usurf_map, vsurf_map,
         ship_speed, lat_min, lon_min, lat_res, lon_res, grid_size,
         pirate_risk_map=pirate_risk_map
@@ -1220,7 +962,7 @@ def main(start_lat, start_lon, goal_lat, goal_lon, ship_speed, ship_dis, area_fr
     print("Calculating the fuel-efficient path (Route 3)...")
     path_fuel, total_fuel, total_fuel_time = theta_star_min_fuel_path(
         start, goal, binary_map,
-        wind_speed_map, wind_angle_map_rad,
+        wind_speed_map, wind_angle_map_deg,
         wave_height_map, usurf_map, vsurf_map,
         ship_speed, lat_min, lon_min, lat_res, lon_res, grid_size,
         pirate_risk_map=pirate_risk_map,
@@ -1228,30 +970,32 @@ def main(start_lat, start_lon, goal_lat, goal_lon, ship_speed, ship_dis, area_fr
         eta_h=n_h, eta_s=n_s, eta_e=n_e, c_sfoc=csfoc
     )
     
-    # Run Theta* algorithm for weighted path
-    print("Calculating the weighted path based on user-defined weights (Route 4)...")
-    # Example weights: prioritize shortest path twice as much as safest and fuel
-    user_weight_shortest = 0.25  # Adjusted to sum to 1 with other weights
-    user_weight_safest = 0.375
-    user_weight_fuel = 0.375
-    path_weighted, total_weighted_cost, normalized_total_time, normalized_total_fuel, normalized_total_risk = theta_star_weighted_path(
-        start, goal, binary_map,
-        wind_speed_map, wind_angle_map_rad,
-        wave_height_map, usurf_map, vsurf_map,
-        ship_speed, lat_min, lon_min, lat_res, lon_res, grid_size,
-        pirate_risk_map=pirate_risk_map,
-        weight_shortest=user_weight_shortest,
-        weight_safest=user_weight_safest,
-        weight_fuel=user_weight_fuel,
-        a=0.1, b=0.05,  # Example parameters; adjust as needed
-        eta_h=n_h, eta_s=n_s, eta_e=n_e, c_sfoc=csfoc
-    )
+    # # Run Theta* algorithm for weighted path
+    # print("Calculating the weighted path based on user-defined weights (Route 4)...")
+    
+    # path_weighted_k = k_paths_dijkstra_constrained_path_2(
+    #     start, goal, binary_map,
+    #     wind_speed_map, wind_angle_map_deg,
+    #     wave_height_map, usurf_map, vsurf_map,
+    #     ship_speed, lat_min, lon_min, lat_res, lon_res, grid_size,
+    #     pirate_risk_map=pirate_risk_map,
+    #     k = 5,
+    #     constraints={'fuel': 41300}, # Example constraint; adjust as needed
+    #     optimize_for='time'
+    # )
+    # path_weighted, path_weighted_time, path_weighted_fuel, path_weighted_risk = None, None, None, None
+    # if path_weighted_k is None:
+    #     print("Weighted path not found.")
+    # else:
+    #     path_weighted = path_weighted_k[0][0]
+    #     path_weighted_time = path_weighted_k[0][1]
+    #     path_weighted_fuel = path_weighted_k[0][2]
+    #     path_weighted_risk = path_weighted_k[0][3]
     
     # Save paths to CSV
     csv_file_fuel = 'path_fuel.csv'
     csv_file_safe = 'path_safe.csv'
     csv_file_short = 'path_short.csv'
-    csv_file_weighted = 'path_weighted.csv'
     
     if path_safest:
         save_path_as_latlon_csv(path_safest, lat_min, lon_min, lat_res, lon_res, grid_size, csv_file_safe)
@@ -1259,20 +1003,82 @@ def main(start_lat, start_lon, goal_lat, goal_lon, ship_speed, ship_dis, area_fr
         save_path_as_latlon_csv(path_shortest, lat_min, lon_min, lat_res, lon_res, grid_size, csv_file_short)
     if path_fuel:
         save_path_as_latlon_csv(path_fuel, lat_min, lon_min, lat_res, lon_res, grid_size, csv_file_fuel)
-    if path_weighted:
-        save_path_as_latlon_csv(path_weighted, lat_min, lon_min, lat_res, lon_res, grid_size, csv_file_weighted)
+    
     
     # Visualization of all paths
-    plot_paths(binary_map, path_shortest, path_safest, path_fuel, path_weighted, lat_min, lon_min, lat_res, lon_res, grid_size)
+    # plot_paths(binary_map, path_shortest, path_safest, path_fuel, path_weighted, lat_min, lon_min, lat_res, lon_res, grid_size)
+    total_path_points=len(path_safest)
+    # User Selection of Route
+    # print("\nAvailable Routes:")
+    # print("1. Route 1: Shortest Path")
+    # print("2. Route 2: Safest Path")
+    # print("3. Route 3: Fuel-Efficient Path")
+    # print("4. Route 4: Weighted Path")
     
-   
+    # Prompt user to choose a route
+    # while True:
+    #     try:
+    #         choice = int(input("Select a route to travel (1-4): "))
+    #         if choice not in [1, 2, 3, 4]:
+    #             print("Invalid choice. Please select a number between 1 and 4.")
+    #             continue
+    #         break
+    #     except ValueError:
+    #         print("Invalid input. Please enter a number between 1 and 4.")
     
+    # Assign selected path based on user choice
+    # if choice == 1:
+    #     selected_path = path_shortest
+    #     route_name = "Route 1: Shortest Path"
+    # elif choice == 2:
+    #     selected_path = path_safest
+    #     route_name = "Route 2: Safest Path"
+    # elif choice == 3:
+    #     selected_path = path_fuel
+    #     route_name = "Route 3: Fuel-Efficient Path"
+    # elif choice == 4:
+    #     selected_path = path_weighted
+    #     route_name = "Route 4: Weighted Path"
+    
+    # if not selected_path:
+    #     print(f"{route_name} could not be found.")
+    #     return
+    
+    # Simulate travel for 3 hours
+    # new_position = simulate_travel(
+    #     path=selected_path,
+    #     wind_speed_map=wind_speed_map,
+    #     wind_angle_map_deg=wind_angle_map_deg,
+    #     wave_height_map=wave_height_map,
+    #     usurf_map=usurf_map,
+    #     vsurf_map=vsurf_map,
+    #     pirate_risk_map=pirate_risk_map,
+    #     lat_min=lat_min,
+    #     lon_min=lon_min,
+    #     lat_res=lat_res,
+    #     lon_res=lon_res,
+    #     grid_size=grid_size,
+    #     ship_params=ship_params,
+    #     travel_time=3  # hours
+    # )
+    
+    # Save the new position to a CSV
+    # save_path_as_latlon_csv([new_position], lat_min, lon_min, lat_res, lon_res, grid_size, 'new_position.csv')
+    
+    # print(f"\nAfter traveling for 3 hours along {route_name}, the new position is:")
+    # print(f"Latitude: {new_position[0]:.4f}, Longitude: {new_position[1]:.4f}")
+    
+    # # Plot the new position on the map
+    # plot_paths(binary_map, path_shortest, path_safest, path_fuel, path_weighted, lat_min, lon_min, lat_res, lon_res, grid_size, new_position=new_position)
+    
+    total_path_points=len(path_safest)
+    print("TOTAL_path ",total_path_points)
     # Output results for all paths
     if path_shortest:
         total_time, total_fuel, total_risk = calculate_path_metrics(
             path_shortest,
             wind_speed_map,
-            wind_angle_map_rad,
+            wind_angle_map_deg,
             wave_height_map,
             usurf_map,
             vsurf_map,
@@ -1284,17 +1090,22 @@ def main(start_lat, start_lon, goal_lat, goal_lon, ship_speed, ship_dis, area_fr
             grid_size,
             ship_params
         )
-        print("----- Route 1: Shortest Path -----")
-        print(f"Total travel time : {total_time:.2f} hours")
-        print(f"Total cumulative risk: {total_risk:.2f}")
-        print(f"Total fuel consumption: {total_fuel:.2f} gallons")
+        # print("----- Route 1: Shortest Path -----")
+        # print(f"Total travel time : {total_time:.2f} hours")
+        # print(f"Total cumulative risk: {total_risk:.2f}")
+        # print(f"Total fuel consumption: {total_fuel:.2f} gallons")
+
+        total_time_shortest1 = total_time
+        total_risk_shortest1 = total_risk
+        total_fuel_shortest1 = total_fuel
+
     
     if path_safest:
         print("\n----- Route 2: Safest Path -----")
         total_time, total_fuel, total_risk = calculate_path_metrics(
             path_safest,
             wind_speed_map,
-            wind_angle_map_rad,
+            wind_angle_map_deg,
             wave_height_map,
             usurf_map,
             vsurf_map,
@@ -1306,16 +1117,16 @@ def main(start_lat, start_lon, goal_lat, goal_lon, ship_speed, ship_dis, area_fr
             grid_size,
             ship_params
         )
-        print(f"Total travel time : {total_time:.2f} hours")
-        print(f"Total cumulative risk: {total_risk:.2f}")
-        print(f"Total fuel consumption: {total_fuel:.2f} gallons")
+        total_time_safest1 = total_time
+        total_risk_safest1 = total_risk
+        total_fuel_safest1 = total_fuel
     
     if path_fuel:
         print("\n----- Route 3: Fuel-Efficient Path -----")
         total_time, total_fuel, total_risk = calculate_path_metrics(
             path_fuel,
             wind_speed_map,
-            wind_angle_map_rad,
+            wind_angle_map_deg,
             wave_height_map,
             usurf_map,
             vsurf_map,
@@ -1327,33 +1138,39 @@ def main(start_lat, start_lon, goal_lat, goal_lon, ship_speed, ship_dis, area_fr
             grid_size,
             ship_params
         )
-        print(f"Total travel time : {total_time:.2f} hours")
-        print(f"Total cumulative risk: {total_risk:.2f}")
-        print(f"Total fuel consumption: {total_fuel:.2f} gallons")
+        total_time_fuel1 = total_time
+        total_risk_fuel1 = total_risk
+        total_fuel_fuel1 = total_fuel
     
-    if path_weighted:
-        print("\n----- Route 4: Weighted Path -----")
-        total_time, total_fuel, total_risk = calculate_path_metrics(
-            path_weighted,
-            wind_speed_map,
-            wind_angle_map_rad,
-            wave_height_map,
-            usurf_map,
-            vsurf_map,
-            pirate_risk_map,
-            lat_min,
-            lon_min,
-            lat_res,
-            lon_res,
-            grid_size,
-            ship_params
-        )
-        print(f"Total travel time : {total_time:.2f} hours")
-        print(f"Total cumulative risk: {total_risk:.2f}")
-        print(f"Total fuel consumption: {total_fuel:.2f} gallons")
+    # if path_weighted:
+    #     print("\n----- Route 4: Weighted Path -----")
+    #     total_time, total_fuel, total_risk = calculate_path_metrics(
+    #         path_weighted,
+    #         wind_speed_map,
+    #         wind_angle_map_deg,
+    #         wave_height_map,
+    #         usurf_map,
+    #         vsurf_map,
+    #         pirate_risk_map,
+    #         lat_min,
+    #         lon_min,
+    #         lat_res,
+    #         lon_res,
+    #         grid_size,
+    #         ship_params
+    #     )
+    #     print(f"Total travel time : {total_time:.2f} hours")
+    #     print(f"Total cumulative risk: {total_risk:.2f}")
+    #     print(f"Total fuel consumption: {total_fuel:.2f} gallons")
     
-    if not path_shortest and not path_safest and not path_fuel and not path_weighted:
-        print("No path could be found.")
+    # if not path_shortest and not path_safest and not path_fuel and not path_weighted:
+    #     print("No path could be found.")
+
+    results = [[total_time_safest1, total_risk_safest1, total_fuel_safest1], [total_time_shortest1, total_risk_shortest1, total_fuel_shortest1], [total_time_fuel1, total_risk_fuel1, total_fuel_fuel1]]
+
+
+
+    return results
 
 # ---------------------- Placeholder Functions ---------------------- #
 
@@ -1376,7 +1193,7 @@ def calculate_added_resistance_waves(h):
     Implement based on relevant hydrodynamic formulas or standards.
     """
     # Placeholder formula; replace with actual calculation
-    return 50 * h  # Example: linear relation with wave height
+    return 0.2 * h  # Example: linear relation with wave height
 
 def calculate_added_resistance_wind(F, Cp, Af):
     """
@@ -1387,39 +1204,6 @@ def calculate_added_resistance_wind(F, Cp, Af):
     return 0.5 * rho * Cp * Af * F**2
 
 # ---------------------- Execute Main Function ---------------------- #
-        
+
 if __name__ == "__main__":
-    try:
-        parser = argparse.ArgumentParser(description="Ship Routing Algorithm")
-        parser.add_argument("start_lat", type=float)
-        parser.add_argument("start_lon", type=float)
-        parser.add_argument("goal_lat", type=float)
-        parser.add_argument("goal_lon", type=float)
-        parser.add_argument("ship_speed", type=float)
-        parser.add_argument("ship_dis", type=float)
-        parser.add_argument("ship_height", type=float)
-        parser.add_argument("area_front", type=float)
-        parser.add_argument("ship_reso", type=int)
-        parser.add_argument("hull_eff", type=float)
-        parser.add_argument("prop_eff", type=float)
-        parser.add_argument("engine_eff", type=float)
-        parser.add_argument("c_sfoc", type=float)
-
-        args = parser.parse_args()
-
-        main( start_lat=args.start_lat, start_lon=args.start_lon,
-            goal_lat=args.goal_lat, goal_lon=args.goal_lon,
-            ship_speed=args.ship_speed, ship_dis=args.ship_dis, 
-            ship_height=args.ship_height,
-            area_front=args.area_front, ship_reso=args.ship_reso,
-            hull_eff=args.hull_eff, prop_eff=args.prop_eff,
-            engine_eff=args.engine_eff, c_sfoc=args.c_sfoc)
-        
-
-    except ValueError as e:
-        print(f"ValueError: {e}")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-
-
-    
+    main()
