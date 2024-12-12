@@ -44,15 +44,15 @@ const MapView = ({ handleMapClick, routes = [], pirateCoordinates = [] }) => {
           {/* Render Routes and Highlight Points */}
           {Array.isArray(routes) &&
             routes.map((route, index) => {
-              if (!route.visible) return null;
+              if (!route.visible || !Array.isArray(route.coordinates) || route.coordinates.length === 0) {
+                return null;
+              }
 
-              // First and last coordinates
               const firstPoint = route.coordinates[0];
               const lastPoint = route.coordinates[route.coordinates.length - 1];
 
               return (
                 <React.Fragment key={index}>
-                  {/* Render Route Line */}
                   <Source
                     id={`route-${index}`}
                     type="geojson"
@@ -74,7 +74,6 @@ const MapView = ({ handleMapClick, routes = [], pirateCoordinates = [] }) => {
                     />
                   </Source>
 
-                  {/* Render Route Points */}
                   <Source
                     id={`route-points-${index}`}
                     type="geojson"
@@ -93,23 +92,22 @@ const MapView = ({ handleMapClick, routes = [], pirateCoordinates = [] }) => {
                       id={`route-points-layer-${index}`}
                       type="circle"
                       paint={{
-                        "circle-color": route.color || "#000000", // Default black color for points
-                        "circle-radius": 4, // Size of the point
+                        "circle-color": route.color || "#000000",
+                        "circle-radius": 4,
                       }}
                     />
                   </Source>
 
-                  {/* Render Custom Markers for First and Last Points */}
                   <Marker longitude={firstPoint[0]} latitude={firstPoint[1]} anchor="bottom">
                     <img
-                      src="./starting.png" // Adjust the path to your pin image
+                      src="./starting.png"
                       alt="Start Point"
                       style={{ width: "32px", height: "32px" }}
                     />
                   </Marker>
                   <Marker longitude={lastPoint[0]} latitude={lastPoint[1]} anchor="bottom">
                     <img
-                      src="./ending.png" // Adjust the path to your pin image
+                      src="./ending.png"
                       alt="End Point"
                       style={{ width: "32px", height: "32px" }}
                     />
