@@ -16,6 +16,7 @@ export const ShipProvider = ({ children }) => {
   const [safetyWeight, setSafetyWeight] = useState("");
   const [distanceWeight, setDistanceWeight] = useState("");
   const [fuelWeight, setFuelWeight] = useState("");
+  const [carriageWeight, setCarriageWeight] = useState("");
 
   const [routeData, setRouteData] = useState([]);
 
@@ -49,7 +50,9 @@ export const ShipProvider = ({ children }) => {
         fuelWeight,
         setFuelWeight,
         routeData,
-        setRouteData
+        setRouteData,
+        carriageWeight,
+        setCarriageWeight
       }}
     >
       {children}

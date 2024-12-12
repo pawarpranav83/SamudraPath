@@ -27,8 +27,6 @@ const Sidebar = ({
   departureTime,
   setDepartureTime,
   shipCategories,
-  carriageWeight,
-  setCarriageWeight,
   handleCategoryChange,
   handleSubtypeChange,
   setSourceCoordinates,
@@ -72,7 +70,9 @@ const Sidebar = ({
     setDistanceWeight,
     fuelWeight,
     setFuelWeight,
-    setRouteData
+    setRouteData,
+    carriageWeight,
+    setCarriageWeight
   } = useContext(ShipContext);
 
   const { routeData } = useContext(ShipContext);
@@ -122,9 +122,10 @@ const Sidebar = ({
     }, 5000);
   };
 
-  const handleSeePosition = (routeId) => {
+  const handleClick = (routeId) => {
     setShowRecalculateButton(true);
-    alert(`Showing position of Route ID: ${routeId} after 6 hours on the map.`);
+    // alert(`Showing position of Route ID: ${routeId} after 6 hours on the map.`);
+
     // Logic to show the position on map goes here
   };
 
@@ -163,7 +164,8 @@ const Sidebar = ({
       hull_eff: parseFloat(hullEfficiency),
       prop_eff: parseFloat(propellerEfficiency),
       engine_eff: parseFloat(engineShaftEfficiency),
-      c_sfoc: parseFloat(csfoc)
+      c_sfoc: parseFloat(csfoc),
+      shipw: parseFloat(carriageWeight)
     };
 
     try {
@@ -178,21 +180,7 @@ const Sidebar = ({
         },
       });
 
-      const { fuel_efficient_path
-        , safest_path
-        , shortest_path } = response.data;
-
-      console.log(fuel_efficient_path)
-      console.log(safest_path)
-      console.log(shortest_path)
-
-      setRouteData({
-        fuel_efficient_path,
-        safest_path,
-        shortest_path,
-      });
-
-      console.log(response.data);
+      console.log(response.data)
     } catch (error) {
       // Handle any errors
       console.error("Error calculating route:", error.response ? error.response.data : error.message);
@@ -591,9 +579,9 @@ const Sidebar = ({
                       borderWidth: "2px",
                       borderColor: route.color, // Dynamically set the border color
                     }}
-                    onClick={() => handleSeePosition(route.id)} // Ensure route.id is passed
+                    onClick={() => handleClick(route.id)} // Ensure route.id is passed
                   >
-                    Position After 3 Hours
+                    Position After 24 Hours
                   </button>}
                 </div>
 
