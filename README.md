@@ -5,8 +5,11 @@ Steps to run the code:
 run the commands:
 
 python3 -m venv .venv
+
 .venv\Scripts\activate
+
 pip install -r requirements.txt
+
 flask --app hello run
 
 **For frontend**:
@@ -14,4 +17,5 @@ flask --app hello run
 run the commands:
 
 npm install 
+
 npm start
