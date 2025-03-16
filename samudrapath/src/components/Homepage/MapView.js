@@ -92,8 +92,9 @@ const MapView = ({ handleMapClick, routes = [], pirateCoordinates = [] }) => {
                       id={`route-points-layer-${index}`}
                       type="circle"
                       paint={{
-                        "circle-color": route.color || "#000000",
-                        "circle-radius": 4,
+                        "circle-color":   "#fff",
+                        // "circle-color": route.color || "#000000",
+                        "circle-radius": 2,
                       }}
                     />
                   </Source>

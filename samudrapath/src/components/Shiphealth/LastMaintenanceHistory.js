@@ -10,7 +10,7 @@ const LastMaintenanceHistory = () => {
       name: 'John Doe',
       company: 'MarineTech Maintenance',
       contact: 'john.doe@marine-tech.com'
-    },
+    }, 
     notes: 'Routine maintenance completed on schedule. All systems are operational.',
     duration: '4 hours',
   };
